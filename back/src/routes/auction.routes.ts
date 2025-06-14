@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ethers } from 'ethers';
 import type { Request, Response, NextFunction } from 'express';
 import { ContractService } from '../services/contract.service';
+import { authenticate } from '@/middleware/auth.middleware.js';
 
 // Interfaces
 interface CreateAuctionRequest {
@@ -13,6 +14,8 @@ interface CreateAuctionRequest {
   startingPrice: string;
   minBidIncrement: string;
   duration: number;
+  title: string;
+  description: string;
 }
 
 interface PlaceBidRequest {
@@ -23,12 +26,14 @@ const router = express.Router();
 const contractService = new ContractService();
 
 // Create Auction
-router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest>, res: Response, next: NextFunction) => {
-  const { tokenId, contractAddress, startingPrice, minBidIncrement, duration } = req.body;
+router.post('/create', 
+  authenticate,
+  async (req: Request<{}, {}, CreateAuctionRequest>, res: Response, next: NextFunction) => {
+  const { tokenId, contractAddress, startingPrice, minBidIncrement, duration, title, description } = req.body;
   const sellerId = req.user?.wallet_address;
 
   try {
-    if (!sellerId || !tokenId || !contractAddress || !startingPrice || !minBidIncrement || !duration) {
+    if (!sellerId || !tokenId || !contractAddress || !startingPrice || !minBidIncrement || !duration || !title || !description) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
@@ -37,11 +42,11 @@ router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest>, res: R
 
     // Insert into auctions table
     const query = `
-        INSERT INTO auctions (id, nft_id, seller_id, start_time, end_time, status, contract_auction_id)
-        VALUES ($1, $2, $3, NOW(), NOW() + interval '${duration} seconds', $4, $5)
-        RETURNING id, nft_id, seller_id, start_time, end_time, status, contract_auction_id, created_at
+        INSERT INTO auctions (id, nft_id, seller_id, start_time, end_time, status, contract_auction_id, title, description)
+        VALUES ($1, $2, $3, NOW(), NOW() + interval '${duration} seconds', $4, $5, $6, $7)
+        RETURNING id, nft_id, seller_id, start_time, end_time, status, contract_auction_id, title, description, created_at
       `;
-    const values = [uuidv4(), tokenId, sellerId, 'active', auctionId];
+    const values = [uuidv4(), tokenId, sellerId, 'active', auctionId, title, description];
     const result = await pool.query(query, values);
 
     res.status(201).json({

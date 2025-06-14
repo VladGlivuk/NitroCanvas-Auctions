@@ -19,9 +19,9 @@ export const authenticate = (
 
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as {
-      wallet_address: string;
+      walletAddress: string;
     };
-    req.user = { wallet_address: decoded.wallet_address };
+    req.user = { wallet_address: decoded.walletAddress };
     next();
   } catch (error) {
     res.status(401).json({ message: "Invalid token" });

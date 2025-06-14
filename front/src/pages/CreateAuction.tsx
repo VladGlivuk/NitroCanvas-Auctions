@@ -5,19 +5,20 @@ import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '@/shared/contexts/Web3Context';
 import { toast } from 'sonner';
+import { AuctionRequestType } from '@/types/AuctionRequestType';
 
 const CreateAuction: React.FC = () => {
   const navigate = useNavigate();
   const { account } = useWeb3();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AuctionRequestType>({
     title: '',
     description: '',
-    nftAddress: '',
+    contractAddress: '',
     tokenId: '',
-    initialPrice: '',
+    startingPrice: '',
     minBidIncrement: '',
-    auctionDuration: '',
+    duration: 0,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,10 +38,12 @@ const CreateAuction: React.FC = () => {
         },
         body: JSON.stringify({
           tokenId: formData.tokenId,
-          contractAddress: formData.nftAddress,
-          startingPrice: formData.initialPrice,
+          contractAddress: formData.contractAddress,
+          startingPrice: formData.startingPrice,
           minBidIncrement: formData.minBidIncrement,
-          duration: parseInt(formData.auctionDuration) * 3600, // Convert hours to seconds
+          duration: formData.duration,
+          title: formData.title,
+          description: formData.description,
         }),
       });
 
@@ -112,8 +115,8 @@ const CreateAuction: React.FC = () => {
                 </label>
                 <Input
                   id="nftAddress"
-                  name="nftAddress"
-                  value={formData.nftAddress}
+                  name="contractAddress"
+                  value={formData.contractAddress}
                   onChange={handleChange}
                   placeholder="0x..."
                   required
@@ -140,11 +143,11 @@ const CreateAuction: React.FC = () => {
                 </label>
                 <Input
                   id="initialPrice"
-                  name="initialPrice"
+                  name="startingPrice"
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.initialPrice}
+                  value={formData.startingPrice}
                   onChange={handleChange}
                   placeholder="0.00"
                   required
@@ -174,10 +177,10 @@ const CreateAuction: React.FC = () => {
                 </label>
                 <Input
                   id="auctionDuration"
-                  name="auctionDuration"
+                  name="duration"
                   type="number"
                   min="1"
-                  value={formData.auctionDuration}
+                  value={formData.duration}
                   onChange={handleChange}
                   placeholder="24"
                   required
