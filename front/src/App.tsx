@@ -4,6 +4,7 @@ import AuctionTradePage from './pages/AuctionTradePage';
 import CreateAuction from './pages/CreateAuction';
 import Layout from './shared/components/layout/Layout';
 import { Web3ContextProvider } from './shared/contexts/Web3Context';
+import { Toaster } from './components/ui/sonner';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
             <Route path="/create-auction" element={<CreateAuction />} />
           </Routes>
         </Layout>
+        <Toaster />
       </Router>
     </Web3ContextProvider>
   );

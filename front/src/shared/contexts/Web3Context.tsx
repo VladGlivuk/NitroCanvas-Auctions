@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 
 // Create a context for Web3 state
@@ -32,14 +32,18 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [provider, setProvider] = useState<ethers.providers.Web3Provider | null>(null);
+  const connectionLock = useRef(false);
 
   const connect = async () => {
+    if (connectionLock.current || isConnecting) return;
+    
     if (typeof window.ethereum === 'undefined') {
       alert('Please install MetaMask to use this feature');
       return;
     }
 
     try {
+      connectionLock.current = true;
       setIsConnecting(true);
       const provider = new ethers.providers.Web3Provider(window.ethereum);
       await provider.send('eth_requestAccounts', []);
@@ -56,6 +60,7 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
       alert('Failed to connect to MetaMask');
     } finally {
       setIsConnecting(false);
+      connectionLock.current = false;
     }
   };
 
