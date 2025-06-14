@@ -67,6 +67,10 @@ const AuctionTradePage: React.FC = () => {
                   required
                 />
               </div>
+              <label className="block text-sm font-medium mb-2">Time left:</label>
+              <div className="px-3 py-2 rounded-md bg-background text-foreground border border-transparent">
+                {auction.timeLeft}
+              </div>
             </div>
             <Button type="submit" className="w-full">
               Place Bid
