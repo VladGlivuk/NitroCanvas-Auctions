@@ -12,13 +12,13 @@ const CreateAuction: React.FC = () => {
   const { account } = useWeb3();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<AuctionRequestType>({
-    title: '',
-    description: '',
-    contractAddress: '',
-    tokenId: '',
-    startingPrice: '',
-    minBidIncrement: '',
-    duration: 0,
+    title: 'dqwdq',
+    description: 'dddddd',
+    contractAddress: '0xBAEcdc728892719052D15f9a59241DA1747A84f8',
+    tokenId: '1',
+    startingPrice: '22',
+    minBidIncrement: '22',
+    duration: 33,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,16 +71,16 @@ const CreateAuction: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto space-y-8">
       <Card>
-        <CardHeader>
-          <CardTitle>Create New Auction</CardTitle>
+        <CardHeader className="space-y-4">
+          <CardTitle className="text-3xl">Create New Auction</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="space-y-6">
               <div>
-                <label htmlFor="title" className="block text-sm font-medium mb-2">
+                <label htmlFor="title" className="block text-sm font-medium mb-3">
                   Title
                 </label>
                 <Input
@@ -94,7 +94,7 @@ const CreateAuction: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="description" className="block text-sm font-medium mb-2">
+                <label htmlFor="description" className="block text-sm font-medium mb-3">
                   Description
                 </label>
                 <textarea
@@ -103,14 +103,14 @@ const CreateAuction: React.FC = () => {
                   value={formData.description}
                   onChange={handleChange}
                   rows={4}
-                  className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground placeholder:text-muted-foreground"
+                  className="w-full px-4 py-3 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground placeholder:text-muted-foreground"
                   placeholder="Describe your NFT"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="nftAddress" className="block text-sm font-medium mb-2">
+                <label htmlFor="nftAddress" className="block text-sm font-medium mb-3">
                   NFT Contract Address
                 </label>
                 <Input
@@ -124,7 +124,7 @@ const CreateAuction: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="tokenId" className="block text-sm font-medium mb-2">
+                <label htmlFor="tokenId" className="block text-sm font-medium mb-3">
                   Token ID
                 </label>
                 <Input
@@ -138,7 +138,7 @@ const CreateAuction: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="initialPrice" className="block text-sm font-medium mb-2">
+                <label htmlFor="initialPrice" className="block text-sm font-medium mb-3">
                   Initial Price (ETH)
                 </label>
                 <Input
@@ -155,7 +155,7 @@ const CreateAuction: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="minBidIncrement" className="block text-sm font-medium mb-2">
+                <label htmlFor="minBidIncrement" className="block text-sm font-medium mb-3">
                   Minimum Bid Increment (ETH)
                 </label>
                 <Input
@@ -172,7 +172,7 @@ const CreateAuction: React.FC = () => {
               </div>
 
               <div>
-                <label htmlFor="auctionDuration" className="block text-sm font-medium mb-2">
+                <label htmlFor="auctionDuration" className="block text-sm font-medium mb-3">
                   Auction Duration (hours)
                 </label>
                 <Input

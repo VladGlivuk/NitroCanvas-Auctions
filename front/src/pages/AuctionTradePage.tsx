@@ -194,45 +194,45 @@ const AuctionTradePage: React.FC = () => {
   const canBid = auction.status === 'active' && !isSeller;
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto space-y-8">
       <Card>
-        <CardHeader>
-          <CardTitle>{auction.title}</CardTitle>
+        <CardHeader className="space-y-4">
+          <CardTitle className="text-3xl">{auction.title}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
+          <div className="space-y-8">
             <div>
-              <label className="block text-sm font-medium mb-2">Description</label>
-              <div className="whitespace-pre-line px-3 py-2 rounded-md bg-background text-foreground border border-transparent">
+              <label className="block text-sm font-medium mb-3">Description</label>
+              <div className="whitespace-pre-line px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
                 {auction.description}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Current Price (ETH)</label>
-              <div className="px-3 py-2 rounded-md bg-background text-foreground border border-transparent">
+              <label className="block text-sm font-medium mb-3">Current Price (ETH)</label>
+              <div className="px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
                 {auction.contractAuction.highestBid || auction.currentPrice}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Minimum Bid Increment (ETH)</label>
-              <div className="px-3 py-2 rounded-md bg-background text-foreground border border-transparent">
+              <label className="block text-sm font-medium mb-3">Minimum Bid Increment (ETH)</label>
+              <div className="px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
                 {auction.minBidIncrement}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Time Left</label>
-              <div className="px-3 py-2 rounded-md bg-background text-foreground border border-transparent">
+              <label className="block text-sm font-medium mb-3">Time Left</label>
+              <div className="px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
                 {timeLeft}
               </div>
             </div>
 
             {canBid && (
-              <form onSubmit={handleBid} className="space-y-4">
+              <form onSubmit={handleBid} className="space-y-6">
                 <div>
-                  <label htmlFor="bidAmount" className="block text-sm font-medium mb-2">
+                  <label htmlFor="bidAmount" className="block text-sm font-medium mb-3">
                     Your Bid (ETH)
                   </label>
                   <Input
@@ -274,7 +274,7 @@ const AuctionTradePage: React.FC = () => {
             )}
 
             {auction.status !== 'active' && (
-              <div className="text-center">
+              <div className="text-center py-6">
                 <p className="text-lg font-semibold">
                   {auction.status === 'completed'
                     ? `Auction completed. ${isHighestBidder ? 'You won!' : 'You did not win.'}`

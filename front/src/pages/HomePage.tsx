@@ -97,22 +97,22 @@ const HomePage: React.FC = () => {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
         <h1 className="text-4xl font-bold">Active Auctions</h1>
         <Link to="/create-auction">
           <Button>Create Auction</Button>
         </Link>
       </div>
       {auctions.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-xl text-muted-foreground">No active auctions found</p>
-          <Link to="/create-auction" className="mt-4 inline-block">
+        <div className="text-center py-16">
+          <p className="text-xl text-muted-foreground mb-6">No active auctions found</p>
+          <Link to="/create-auction" className="inline-block">
             <Button>Create Your First Auction</Button>
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {auctions.map((auction) => (
             <Card key={auction.id} className="overflow-hidden">
               <div className="aspect-square relative">

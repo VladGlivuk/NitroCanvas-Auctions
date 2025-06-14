@@ -15,9 +15,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-6 py-6">
           <nav className="flex items-center justify-between">
-            <div className="flex items-center">
+            <div className="flex items-center space-x-4">
               <Link to="/">
                 <Button 
                   variant={location.pathname === '/' ? "default" : "outline"}
@@ -26,7 +26,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   NFT Auctions
                 </Button>
               </Link>
-              <Link to="/create-auction" className="ml-0.5">
+              <Link to="/create-auction">
                 <Button 
                   variant={location.pathname === '/create-auction' ? "default" : "outline"}
                   className={location.pathname === '/create-auction' ? "bg-[#4F46E5] hover:bg-[#4F46E5]/90 text-white" : "text-white"}
@@ -41,11 +41,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </nav>
         </div>
       </header>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-6 py-12">
         {children}
       </main>
       <footer className="border-t mt-auto">
-        <div className="container mx-auto px-4 py-6">
+        <div className="container mx-auto px-6 py-8">
           <p className="text-center text-muted-foreground">
             © 2025 NFT Auctions. All rights reserved.
           </p>
