@@ -40,14 +40,14 @@ export const provider = new ethers.JsonRpcProvider(env.INFURA_URL);
 export const wallet = new ethers.Wallet(env.PRIVATE_KEY!, provider);
 
 // Nitrolite SDK Initialization
-export const nitro = new NitroliteRPC();
+export const nitro = NitroliteRPC;
 // nitro.setProvider(provider); // TODO
 // nitro.setSigner(wallet); // TODO
 // nitro.setAdjudicatorAddress(process.env.CONTRACT_ADDRESS!); // TODO
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/auctions", auctionRoutes);
+app.use("/api/auctions", authenticate, auctionRoutes);
 
 // Global Error Handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
