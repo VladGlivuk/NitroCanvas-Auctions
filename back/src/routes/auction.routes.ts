@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import type { Request, Response } from 'express';
 import { ContractService } from '../services/contract.service.js';
 import { Router } from 'express';
-import { Pool } from 'pg';
+import { pool } from '../index.js';
 
 // Interfaces
 interface CreateAuctionRequest {
@@ -25,19 +25,32 @@ interface PlaceBidRequest {
 
 const router = Router();
 const contractService = new ContractService();
-const pool = new Pool();
 
 // Create Auction
-router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest>, res: Response) => {
-  const { nftId, sellerId, startTime, endTime, title, description, contractAuctionId } = req.body;
+router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest & { contractAddress: string }>, res: Response) => {
+  const { nftId, sellerId, startTime, endTime, title, description, contractAuctionId, contractAddress } = req.body;
+
+  // Debug: log incoming payload
+  console.log('[Auction Create] Incoming payload:', req.body);
 
   try {
     // Validate required fields
-    if (!nftId || !sellerId || !startTime || !endTime || !title) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    const missing = [];
+    if (!nftId) missing.push('nftId');
+    if (!sellerId) missing.push('sellerId');
+    if (!startTime) missing.push('startTime');
+    if (!endTime) missing.push('endTime');
+    if (!title) missing.push('title');
+    if (!contractAddress) missing.push('contractAddress');
+    if (missing.length) {
+      console.log('[Auction Create] Missing fields:', missing);
+      return res.status(400).json({ error: 'Missing required fields', missing });
     }
 
-    // Create new auction
+    // 1. NFT lookup logic removed.
+    // nftUuid will now directly be nftId from the payload.
+
+    // 2. Insert auction with all required fields
     const query = `
       INSERT INTO auctions (
         id,
@@ -48,17 +61,33 @@ router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest>, res: R
         status,
         contract_auction_id,
         title,
-        description
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        description,
+        highest_bidder,
+        highest_bid
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
 
-    const values = [uuidv4(), nftId, sellerId, startTime, endTime, 'active', contractAuctionId || null, title, description || null];
+    const values = [
+      uuidv4(), // id
+      nftId, // nft_id (directly from payload)
+      sellerId, // seller_id (wallet address)
+      startTime, // start_time
+      endTime, // end_time
+      'active', // status
+      contractAuctionId || null, // contract_auction_id
+      title, // title
+      description || null, // description
+      null, // highest_bidder
+      null, // highest_bid
+    ];
 
+    console.log('[Auction Create] Inserting auction with values:', values);
     const result = await pool.query(query, values);
+    console.log('[Auction Create] Auction insert result:', result.rows);
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating auction:', error);
+    console.error('[Auction Create] Error creating auction:', error);
     res.status(500).json({ error: 'Failed to create auction' });
   }
 });
