@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import WalletConnect from '../WalletConnect';
 import { useWeb3 } from '@/shared/contexts/Web3Context';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -36,7 +37,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Link>
             </div>
             <div className="flex items-center gap-4">
-              <WalletConnect />
+              {/* <WalletConnect /> */}
+              <ConnectButton />
             </div>
           </nav>
         </div>

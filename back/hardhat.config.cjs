@@ -2,6 +2,7 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("@nomicfoundation/hardhat-verify");
 require("dotenv").config();
+require("hardhat-tracer");
 
 module.exports = {
   solidity: "0.8.28",

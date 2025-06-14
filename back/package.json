@@ -8,7 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "deploy": "npx hardhat run scripts/deploy.js --network optimismSepolia"
+    "deploy": "npx hardhat run scripts/deploy.js --network sepolia"
   },
   "keywords": [],
   "author": "",
@@ -30,7 +30,9 @@
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.14",
     "@openzeppelin/contracts": "^5.3.0",
+    "fs-extra": "^11.3.0",
     "hardhat": "^2.24.3",
+    "hardhat-tracer": "^3.2.1",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3"
   }
