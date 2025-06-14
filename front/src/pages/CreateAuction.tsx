@@ -1,67 +1,96 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWeb3 } from '@/shared/contexts/Web3Context';
 import { AuctionRequestType } from '@/types/AuctionRequestType';
 import {NftMarketplaceABI} from '../../NTFMarketplace';
 import { useAccount, useWriteContract } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 
 const CreateAuction: React.FC = () => {
   const navigate = useNavigate();
-  const { account } = useWeb3();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<AuctionRequestType>({
-    title: 'dqwdq',
-    description: 'dddddd',
+    title: 'das',
+    description: 'ddd',
     contractAddress: '0x57aE8b6D5656a840c2deaA0f8547279daF1A8d0C',
-    tokenId: '1',
-    startingPrice: '22',
-    minBidIncrement: '22',
-    duration: 33,
+    tokenId: '12',
+    startingPrice: '1',
+    minBidIncrement: '0.1',
+    duration: 24, // Default 24 hours
   });
 
   const { writeContract } = useWriteContract();
-
-  const {address} = useAccount();
-
+  const { address } = useAccount();
+  console.log('address', address);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-      setIsSubmitting(true);
+    try {
+      // Create auction on blockchain
       writeContract(
         {
-          address: formData.contractAddress,
+          address: '0x57aE8b6D5656a840c2deaA0f8547279daF1A8d0C' as `0x${string}`,
           abi: NftMarketplaceABI,
           functionName: "createAuction",
-          args: ['0x66601939Ff0374b67c985e08ECFee89677B59cA5', '11', 1000000000000000000n, 100000000000000000n, 604800n],
-        }, {
-          onSuccess: async (address, data) => {
-            console.log("Auction created successfully:", address, data);
+          args: [
+            '0x66601939Ff0374b67c985e08ECFee89677B59cA5' as `0x${string}`,
+            BigInt(17),
+            1000000000000000000n,
+            100000000000000000n,
+            604800n
+          ],
+        },
+        {
+          onSuccess: async (hash) => {
+            console.log("Auction created successfully:", hash);
 
-            await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/create`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-                body: JSON.stringify({
-                  tokenId: formData.tokenId,
-                  contractAddress: formData.contractAddress,
-                  startingPrice: formData.startingPrice,
-                  minBidIncrement: formData.minBidIncrement,
-                  duration: formData.duration,
-                  title: formData.title,
-                  description: formData.description,
-                }),
-              });
+            // Calculate start and end times
+            const startTime = new Date().toISOString();
+            const endTime = new Date(Date.now() + formData.duration * 3600 * 1000).toISOString();
 
-            navigate(`/auction/${formData.tokenId}`);
+            // Create auction in database
+            const payload = {
+              nftId: formData.tokenId,
+              sellerId: address,
+              startTime,
+              endTime,
+              title: formData.title,
+              description: formData.description,
+              contractAddress: formData.contractAddress,
+            };
+            console.log('Auction creation payload:', payload);
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              throw new Error('Failed to create auction in database');
+            }
+
+            const auction = await response.json();
+            toast.success('Auction created successfully!');
+            navigate(`/auction/${auction.id}`);
+          },
+          onError: (error) => {
+            console.error('Error creating auction:', error);
+            toast.error('Failed to create auction');
           }
         }
       );
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error('Failed to create auction');
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
