@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from './ui/button';
+import { Button } from '@/components/ui/button';
 import { useWeb3 } from '../contexts/Web3Context';
 
 const WalletConnect: React.FC = () => {
@@ -29,7 +29,8 @@ const WalletConnect: React.FC = () => {
         <Button
           onClick={connect}
           disabled={isConnecting}
-          variant="default"
+          variant="outline"
+          className="text-white"
         >
           {isConnecting ? 'Connecting...' : 'Connect Wallet'}
         </Button>
@@ -44,8 +45,9 @@ const WalletConnect: React.FC = () => {
           </span>
           <Button
             onClick={disconnect}
-            variant="outline"
+            variant="default"
             size="sm"
+            className="bg-[#10B981] hover:bg-[#10B981]/90 text-white"
           >
             Disconnect
           </Button>
