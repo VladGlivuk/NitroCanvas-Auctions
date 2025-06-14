@@ -1,292 +1,228 @@
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useWeb3 } from '@/shared/contexts/Web3Context';
+import { useContractRead, useContractWrite, useWaitForTransactionReceipt, useAccount } from 'wagmi';
+import { parseEther, formatEther } from 'viem';
+import {NftMarketplaceABI} from '../../NTFMarketplace';
+import { NFTMarketplaceAddress } from '../contracts/NFTMarketplaceAddress';
 import { toast } from 'sonner';
 
-interface Auction {
-  id: string;
-  title: string;
-  description: string;
-  currentPrice: string;
-  minBidIncrement: string;
-  timeLeft: string;
-  imageUrl: string;
-  creator: string;
-  status: 'active' | 'completed' | 'cancelled';
-  contractAuction: {
-    seller: string;
-    highestBidder: string;
-    highestBid: string;
-    startTime: string;
-    endTime: string;
-    isActive: boolean;
-  };
+interface AuctionData {
+  seller: string;
+  nftContract: string;
+  tokenId: bigint;
+  startingPrice: bigint;
+  minBidIncrement: bigint;
+  highestBid: bigint;
+  highestBidder: string;
+  startTime: bigint;
+  endTime: bigint;
+  isActive: boolean;
 }
 
-const AuctionTradePage: React.FC = () => {
+export default function AuctionTradePage() {
   const { auctionId } = useParams();
   const navigate = useNavigate();
-  const { account } = useWeb3();
+  const { address } = useAccount();
   const [bidAmount, setBidAmount] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [auction, setAuction] = useState<Auction | null>(null);
-  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [timeLeft, setTimeLeft] = useState('');
+
+  // Fetch auction data
+  const { data: auctionData, isLoading: isLoadingAuction } = useContractRead({
+    address: NFTMarketplaceAddress,
+    abi: NftMarketplaceABI,
+    functionName: 'auctions',
+    args: [auctionId ? BigInt(auctionId) : 0n],
+  }) as { data: AuctionData | undefined, isLoading: boolean };
+
+  // Place bid
+  const { writeContract: placeBid, data: bidData } = useContractWrite({
+    address: NFTMarketplaceAddress,
+    abi: NftMarketplaceABI,
+    functionName: 'placeBid',
+  });
+
+  const { isLoading: isBidLoading, isSuccess: isBidSuccess } = useWaitForTransactionReceipt({
+    hash: bidData,
+  });
+
+  // Complete auction
+  const { writeContract: completeAuction, data: completeData } = useContractWrite({
+    address: NFTMarketplaceAddress,
+    abi: NftMarketplaceABI,
+    functionName: 'completeAuction',
+  });
+
+  const { isLoading: isCompleteLoading, isSuccess: isCompleteSuccess } = useWaitForTransactionReceipt({
+    hash: completeData,
+  });
+
+  // Cancel auction
+  const { writeContract: cancelAuction, data: cancelData } = useContractWrite({
+    address: NFTMarketplaceAddress,
+    abi: NftMarketplaceABI,
+    functionName: 'cancelAuction',
+  });
+
+  const { isLoading: isCancelLoading, isSuccess: isCancelSuccess } = useWaitForTransactionReceipt({
+    hash: cancelData,
+  });
 
   useEffect(() => {
-    fetchAuctionDetails();
-    const interval = setInterval(updateTimeLeft, 1000);
-    return () => clearInterval(interval);
-  }, [auctionId]);
-
-  const fetchAuctionDetails = async () => {
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/auctions/${auctionId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch auction details');
-      }
-      setAuction(data);
-    } catch (error) {
-      console.error('Error fetching auction details:', error);
-      toast.error(error.message || 'Failed to fetch auction details');
-    }
-  };
-
-  const updateTimeLeft = () => {
-    if (!auction?.contractAuction?.endTime) return;
-
-    const endTime = new Date(auction.contractAuction.endTime).getTime();
-    const now = new Date().getTime();
-    const distance = endTime - now;
-
-    if (distance < 0) {
-      setTimeLeft('Auction ended');
-      return;
-    }
-
-    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-    setTimeLeft(`${days}d ${hours}h ${minutes}m ${seconds}s`);
-  };
-
-  const handleBid = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!account) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/auctions/${auctionId}/bid`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-          body: JSON.stringify({ bidAmount }),
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to place bid');
-      }
-
+    if (isBidSuccess) {
       toast.success('Bid placed successfully!');
       setBidAmount('');
-      fetchAuctionDetails();
-    } catch (error) {
-      console.error('Error placing bid:', error);
-      toast.error(error.message || 'Failed to place bid');
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  }, [isBidSuccess]);
 
-  const handleCompleteAuction = async () => {
-    if (!account) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/auctions/${auctionId}/complete`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to complete auction');
-      }
-
+  useEffect(() => {
+    if (isCompleteSuccess) {
       toast.success('Auction completed successfully!');
-      fetchAuctionDetails();
-    } catch (error) {
-      console.error('Error completing auction:', error);
-      toast.error(error.message || 'Failed to complete auction');
-    } finally {
-      setIsSubmitting(false);
+      navigate('/');
     }
-  };
+  }, [isCompleteSuccess, navigate]);
 
-  const handleCancelAuction = async () => {
-    if (!account) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/auctions/${auctionId}/cancel`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to cancel auction');
-      }
-
+  useEffect(() => {
+    if (isCancelSuccess) {
       toast.success('Auction cancelled successfully!');
-      fetchAuctionDetails();
-    } catch (error) {
-      console.error('Error cancelling auction:', error);
-      toast.error(error.message || 'Failed to cancel auction');
-    } finally {
-      setIsSubmitting(false);
+      navigate('/');
+    }
+  }, [isCancelSuccess, navigate]);
+
+  useEffect(() => {
+    if (auctionData) {
+      const updateTimeLeft = () => {
+        const now = BigInt(Math.floor(Date.now() / 1000));
+        const endTime = auctionData.endTime;
+        
+        if (now >= endTime) {
+          setTimeLeft('Auction ended');
+          return;
+        }
+
+        const timeLeftSeconds = Number(endTime - now);
+        const hours = Math.floor(timeLeftSeconds / 3600);
+        const minutes = Math.floor((timeLeftSeconds % 3600) / 60);
+        const seconds = timeLeftSeconds % 60;
+        
+        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
+      };
+
+      updateTimeLeft();
+      const interval = setInterval(updateTimeLeft, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [auctionData]);
+
+  const handlePlaceBid = () => {
+    if (!bidAmount || !auctionId) return;
+    
+    try {
+      const bidAmountWei = parseEther(bidAmount);
+      placeBid({
+        args: [BigInt(auctionId)],
+        value: bidAmountWei,
+      });
+    } catch {
+      toast.error('Invalid bid amount');
     }
   };
 
-  if (!auction) {
-    return <div>Loading...</div>;
+  const handleCompleteAuction = () => {
+    if (!auctionId) return;
+    completeAuction({
+      args: [BigInt(auctionId)],
+    });
+  };
+
+  const handleCancelAuction = () => {
+    if (!auctionId) return;
+    cancelAuction({
+      args: [BigInt(auctionId)],
+    });
+  };
+
+  if (isLoadingAuction) {
+    return <div>Loading auction details...</div>;
   }
 
-  const isSeller = account?.toLowerCase() === auction.contractAuction.seller.toLowerCase();
-  const isHighestBidder = account?.toLowerCase() === auction.contractAuction.highestBidder.toLowerCase();
-  const canBid = auction.status === 'active' && !isSeller;
+  if (!auctionData) {
+    return <div>Auction not found</div>;
+  }
+
+  const isSeller = address?.toLowerCase() === auctionData.seller.toLowerCase();
+  const canBid = !isSeller && auctionData.isActive;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
-      <Card>
-        <CardHeader className="space-y-4">
-          <CardTitle className="text-3xl">{auction.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-8">
-            <div>
-              <label className="block text-sm font-medium mb-3">Description</label>
-              <div className="whitespace-pre-line px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
-                {auction.description}
-              </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 className="text-3xl font-bold mb-6">Auction Details</h1>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Auction Information</h2>
+            <div className="space-y-4">
+              <p><span className="font-medium">Seller:</span> {auctionData.seller}</p>
+              <p><span className="font-medium">NFT Contract:</span> {auctionData.nftContract}</p>
+              <p><span className="font-medium">Token ID:</span> {auctionData.tokenId.toString()}</p>
+              <p><span className="font-medium">Starting Price:</span> {formatEther(auctionData.startingPrice)} ETH</p>
+              <p><span className="font-medium">Minimum Bid Increment:</span> {formatEther(auctionData.minBidIncrement)} ETH</p>
+              <p><span className="font-medium">Current Highest Bid:</span> {formatEther(auctionData.highestBid)} ETH</p>
+              <p><span className="font-medium">Highest Bidder:</span> {auctionData.highestBidder}</p>
+              <p><span className="font-medium">Time Left:</span> {timeLeft}</p>
+              <p><span className="font-medium">Status:</span> {auctionData.isActive ? 'Active' : 'Ended'}</p>
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-3">Current Price (ETH)</label>
-              <div className="px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
-                {auction.contractAuction.highestBid || auction.currentPrice}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-3">Minimum Bid Increment (ETH)</label>
-              <div className="px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
-                {auction.minBidIncrement}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-3">Time Left</label>
-              <div className="px-4 py-3 rounded-md bg-background text-foreground border border-transparent">
-                {timeLeft}
-              </div>
-            </div>
-
-            {canBid && (
-              <form onSubmit={handleBid} className="space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Place Bid</h2>
+            {canBid ? (
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="bidAmount" className="block text-sm font-medium mb-3">
-                    Your Bid (ETH)
-                  </label>
-                  <Input
-                    id="bidAmount"
+                  <label className="block text-sm font-medium text-gray-700">Bid Amount (ETH)</label>
+                  <input
                     type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="Enter your bid"
+                    step="0.001"
                     value={bidAmount}
                     onChange={(e) => setBidAmount(e.target.value)}
-                    className="bg-input text-foreground border-border placeholder:text-muted-foreground"
-                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    placeholder="Enter bid amount"
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Placing Bid...' : 'Place Bid'}
-                </Button>
-              </form>
-            )}
-
-            {isSeller && auction.status === 'active' && (
-              <div className="space-y-4">
-                <Button
-                  onClick={handleCompleteAuction}
-                  className="w-full"
-                  disabled={isSubmitting}
+                <button
+                  onClick={handlePlaceBid}
+                  disabled={isBidLoading || !bidAmount}
+                  className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-400"
                 >
-                  {isSubmitting ? 'Completing...' : 'Complete Auction'}
-                </Button>
-                <Button
-                  onClick={handleCancelAuction}
-                  variant="destructive"
-                  className="w-full"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Cancelling...' : 'Cancel Auction'}
-                </Button>
+                  {isBidLoading ? 'Placing Bid...' : 'Place Bid'}
+                </button>
               </div>
+            ) : (
+              <p className="text-gray-500">
+                {isSeller ? "You can't bid on your own auction" : "This auction is not active"}
+              </p>
             )}
 
-            {auction.status !== 'active' && (
-              <div className="text-center py-6">
-                <p className="text-lg font-semibold">
-                  {auction.status === 'completed'
-                    ? `Auction completed. ${isHighestBidder ? 'You won!' : 'You did not win.'}`
-                    : 'Auction cancelled'}
-                </p>
+            {isSeller && auctionData.isActive && (
+              <div className="mt-6 space-y-4">
+                <button
+                  onClick={handleCompleteAuction}
+                  disabled={isCompleteLoading}
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-400"
+                >
+                  {isCompleteLoading ? 'Completing...' : 'Complete Auction'}
+                </button>
+                <button
+                  onClick={handleCancelAuction}
+                  disabled={isCancelLoading}
+                  className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:bg-gray-400"
+                >
+                  {isCancelLoading ? 'Cancelling...' : 'Cancel Auction'}
+                </button>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
-};
-
-export default AuctionTradePage; 
+} 

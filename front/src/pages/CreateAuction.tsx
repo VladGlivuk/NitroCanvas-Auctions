@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '@/shared/contexts/Web3Context';
-import { toast } from 'sonner';
 import { AuctionRequestType } from '@/types/AuctionRequestType';
 import {NftMarketplaceABI} from '../../NTFMarketplace';
 import { useAccount, useWriteContract } from 'wagmi';
@@ -36,36 +35,32 @@ const CreateAuction: React.FC = () => {
           address: formData.contractAddress,
           abi: NftMarketplaceABI,
           functionName: "createAuction",
-          args: ['0x66601939Ff0374b67c985e08ECFee89677B59cA5', '5', 1000000000000000000n, 100000000000000000n, 604800n],
+          args: ['0x66601939Ff0374b67c985e08ECFee89677B59cA5', '11', 1000000000000000000n, 100000000000000000n, 604800n],
         }, {
-          onSuccess: async () => {
-            // await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/create`, {
-            //     method: 'POST',
-            //     headers: {
-            //       'Content-Type': 'application/json',
-            //       'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            //     },
-            //     body: JSON.stringify({
-            //       tokenId: formData.tokenId,
-            //       contractAddress: formData.contractAddress,
-            //       startingPrice: formData.startingPrice,
-            //       minBidIncrement: formData.minBidIncrement,
-            //       duration: formData.duration,
-            //       title: formData.title,
-            //       description: formData.description,
-            //     }),
-            //   });
+          onSuccess: async (address, data) => {
+            console.log("Auction created successfully:", address, data);
+
+            await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/create`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({
+                  tokenId: formData.tokenId,
+                  contractAddress: formData.contractAddress,
+                  startingPrice: formData.startingPrice,
+                  minBidIncrement: formData.minBidIncrement,
+                  duration: formData.duration,
+                  title: formData.title,
+                  description: formData.description,
+                }),
+              });
+
+            navigate(`/auction/${formData.tokenId}`);
           }
         }
       );
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to create auction');
-      }
-
-      toast.success('Auction created successfully!');
-      navigate(`/auction/${data.auction.id}`);
     }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

@@ -1,24 +1,20 @@
 // src/index.ts
-import express, {
-  type Request,
-  type Response,
-  type NextFunction,
-} from "express";
-import { Pool } from "pg";
-import { ethers } from "ethers";
-import { env } from "../src/config/env.ts";
-import authRoutes from "./routes/auth.routes.ts";
-import auctionRoutes from "./routes/auction.routes.ts"; // New file for auction routes
-import { authenticate } from "./middleware/auth.middleware.ts";
-import { NitroliteRPC } from "@erc7824/nitrolite";
-import cors from "cors";
+import express, { type Request, type Response, type NextFunction } from 'express';
+import { Pool } from 'pg';
+import { ethers } from 'ethers';
+import { env } from '../src/config/env.ts';
+import authRoutes from './routes/auth.routes.ts';
+import auctionRoutes from './routes/auction.routes.ts'; // New file for auction routes
+import { authenticate } from './middleware/auth.middleware.ts';
+import { NitroliteRPC } from '@erc7824/nitrolite';
+import cors from 'cors';
 
 const app = express();
 const port = env.PORT;
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: 'http://localhost:5173' }));
 
 // PostgreSQL Connection
 export const pool = new Pool({
@@ -28,9 +24,9 @@ export const pool = new Pool({
 (async () => {
   try {
     await pool.connect();
-    console.log("Connected to PostgreSQL");
+    console.log('Connected to PostgreSQL');
   } catch (err: any) {
-    console.error("Database connection error:", err.stack);
+    console.error('Database connection error:', err.stack);
     process.exit(1);
   }
 })();
@@ -46,15 +42,15 @@ export const nitro = NitroliteRPC;
 // nitro.setAdjudicatorAddress(process.env.CONTRACT_ADDRESS!); // TODO
 
 // Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/auctions", authenticate, auctionRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/auctions', auctionRoutes);
 
 // Global Error Handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);
   res.status(500).json({
-    message: "Internal server error",
-    error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
