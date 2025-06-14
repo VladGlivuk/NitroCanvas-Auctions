@@ -4,8 +4,9 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract NFTMarketplace is ReentrancyGuard, Ownable {
+contract NFTMarketplace is ReentrancyGuard, Ownable, Pausable {
     struct Auction {
         address seller;
         address nftContract;
@@ -22,6 +23,9 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
     // Mapping from auction ID to Auction struct
     mapping(uint256 => Auction) public auctions;
     uint256 public auctionCount;
+    uint256 public platformFee; // in basis points (1% = 100)
+    uint256 public constant MAX_DURATION = 30 days;
+    uint256 public constant MAX_PLATFORM_FEE = 1000; // 10%
 
     // Events
     event AuctionCreated(
@@ -43,12 +47,30 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
     event AuctionCompleted(
         uint256 indexed auctionId,
         address indexed winner,
-        uint256 amount
+        uint256 amount,
+        uint256 platformFeeAmount
     );
 
     event AuctionCancelled(uint256 indexed auctionId);
+    event PlatformFeeUpdated(uint256 newFee);
 
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) {
+        platformFee = 250; // 2.5% default platform fee
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    function setPlatformFee(uint256 _newFee) external onlyOwner {
+        require(_newFee <= MAX_PLATFORM_FEE, "Fee too high");
+        platformFee = _newFee;
+        emit PlatformFeeUpdated(_newFee);
+    }
 
     function createAuction(
         address _nftContract,
@@ -56,10 +78,18 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
         uint256 _startingPrice,
         uint256 _minBidIncrement,
         uint256 _duration
-    ) external nonReentrant returns (uint256) {
+    ) external nonReentrant whenNotPaused returns (uint256) {
+        require(_nftContract != address(0), "Invalid NFT contract address");
         require(_startingPrice > 0, "Starting price must be greater than 0");
         require(_minBidIncrement > 0, "Minimum bid increment must be greater than 0");
-        require(_duration > 0, "Duration must be greater than 0");
+        require(_duration > 0 && _duration <= MAX_DURATION, "Invalid duration");
+
+        // Check if NFT is approved for transfer
+        require(
+            IERC721(_nftContract).isApprovedForAll(msg.sender, address(this)) ||
+            IERC721(_nftContract).getApproved(_tokenId) == address(this),
+            "NFT not approved for transfer"
+        );
 
         // Transfer NFT to this contract
         IERC721(_nftContract).transferFrom(msg.sender, address(this), _tokenId);
@@ -94,7 +124,7 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
         return auctionId;
     }
 
-    function placeBid(uint256 _auctionId) external payable nonReentrant {
+    function placeBid(uint256 _auctionId) external payable nonReentrant whenNotPaused {
         Auction storage auction = auctions[_auctionId];
         require(auction.isActive, "Auction is not active");
         require(block.timestamp >= auction.startTime, "Auction has not started");
@@ -105,15 +135,21 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
             "Bid must be higher than current highest bid plus minimum increment"
         );
 
-        // Refund previous highest bidder if exists
-        if (auction.highestBidder != address(0)) {
-            payable(auction.highestBidder).transfer(auction.highestBid);
-        }
+        // Store previous bidder and amount for refund
+        address previousBidder = auction.highestBidder;
+        uint256 previousBid = auction.highestBid;
 
+        // Update auction state
         auction.highestBidder = msg.sender;
         auction.highestBid = msg.value;
 
         emit BidPlaced(_auctionId, msg.sender, msg.value);
+
+        // Refund previous highest bidder if exists
+        if (previousBidder != address(0)) {
+            (bool success, ) = payable(previousBidder).call{value: previousBid}("");
+            require(success, "Refund failed");
+        }
 
         // Check if auction should end
         if (block.timestamp >= auction.endTime) {
@@ -121,7 +157,7 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
         }
     }
 
-    function completeAuction(uint256 _auctionId) external nonReentrant {
+    function completeAuction(uint256 _auctionId) external nonReentrant whenNotPaused {
         Auction storage auction = auctions[_auctionId];
         require(auction.isActive, "Auction is not active");
         require(block.timestamp > auction.endTime, "Auction has not ended");
@@ -135,6 +171,10 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
         auction.isActive = false;
 
         if (auction.highestBidder != address(0)) {
+            // Calculate platform fee
+            uint256 feeAmount = (auction.highestBid * platformFee) / 10000;
+            uint256 sellerAmount = auction.highestBid - feeAmount;
+
             // Transfer NFT to winner
             IERC721(auction.nftContract).transferFrom(
                 address(this),
@@ -142,10 +182,14 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
                 auction.tokenId
             );
 
-            // Transfer funds to seller
-            payable(auction.seller).transfer(auction.highestBid);
+            // Transfer funds to seller and platform
+            (bool success1, ) = payable(auction.seller).call{value: sellerAmount}("");
+            require(success1, "Transfer to seller failed");
+            
+            (bool success2, ) = payable(owner()).call{value: feeAmount}("");
+            require(success2, "Transfer to platform failed");
 
-            emit AuctionCompleted(_auctionId, auction.highestBidder, auction.highestBid);
+            emit AuctionCompleted(_auctionId, auction.highestBidder, auction.highestBid, feeAmount);
         } else {
             // No bids, return NFT to seller
             IERC721(auction.nftContract).transferFrom(
@@ -156,7 +200,7 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
         }
     }
 
-    function cancelAuction(uint256 _auctionId) external nonReentrant {
+    function cancelAuction(uint256 _auctionId) external nonReentrant whenNotPaused {
         Auction storage auction = auctions[_auctionId];
         require(auction.isActive, "Auction is not active");
         require(
@@ -175,7 +219,8 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
 
         // Refund highest bidder if exists
         if (auction.highestBidder != address(0)) {
-            payable(auction.highestBidder).transfer(auction.highestBid);
+            (bool success, ) = payable(auction.highestBidder).call{value: auction.highestBid}("");
+            require(success, "Refund failed");
         }
 
         emit AuctionCancelled(_auctionId);
@@ -212,4 +257,10 @@ contract NFTMarketplace is ReentrancyGuard, Ownable {
             auction.isActive
         );
     }
-} 
+
+    // Emergency functions
+    function emergencyWithdraw() external onlyOwner {
+        (bool success, ) = payable(owner()).call{value: address(this).balance}("");
+        require(success, "Withdrawal failed");
+    }
+}
