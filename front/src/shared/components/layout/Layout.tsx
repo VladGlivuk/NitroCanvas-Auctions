@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import WalletConnect from '../WalletConnect';
 import { useWeb3 } from '@/shared/contexts/Web3Context';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 

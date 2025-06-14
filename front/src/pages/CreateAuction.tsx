@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '@/shared/contexts/Web3Context';
 import { toast } from 'sonner';
 import { AuctionRequestType } from '@/types/AuctionRequestType';
+import {NftMarketplaceABI} from '../../NTFMarketplace';
+import { useAccount, useWriteContract } from 'wagmi';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const CreateAuction: React.FC = () => {
   const navigate = useNavigate();
@@ -14,38 +16,48 @@ const CreateAuction: React.FC = () => {
   const [formData, setFormData] = useState<AuctionRequestType>({
     title: 'dqwdq',
     description: 'dddddd',
-    contractAddress: '0xBAEcdc728892719052D15f9a59241DA1747A84f8',
+    contractAddress: '0x57aE8b6D5656a840c2deaA0f8547279daF1A8d0C',
     tokenId: '1',
     startingPrice: '22',
     minBidIncrement: '22',
     duration: 33,
   });
 
+  const { writeContract } = useWriteContract();
+
+  const {address} = useAccount();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!account) {
-      toast.error('Please connect your wallet first');
-      return;
-    }
 
-    try {
       setIsSubmitting(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          tokenId: formData.tokenId,
-          contractAddress: formData.contractAddress,
-          startingPrice: formData.startingPrice,
-          minBidIncrement: formData.minBidIncrement,
-          duration: formData.duration,
-          title: formData.title,
-          description: formData.description,
-        }),
-      });
+      writeContract(
+        {
+          address: formData.contractAddress,
+          abi: NftMarketplaceABI,
+          functionName: "createAuction",
+          args: ['0x66601939Ff0374b67c985e08ECFee89677B59cA5', '5', 1000000000000000000n, 100000000000000000n, 604800n],
+        }, {
+          onSuccess: async () => {
+            // await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/create`, {
+            //     method: 'POST',
+            //     headers: {
+            //       'Content-Type': 'application/json',
+            //       'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            //     },
+            //     body: JSON.stringify({
+            //       tokenId: formData.tokenId,
+            //       contractAddress: formData.contractAddress,
+            //       startingPrice: formData.startingPrice,
+            //       minBidIncrement: formData.minBidIncrement,
+            //       duration: formData.duration,
+            //       title: formData.title,
+            //       description: formData.description,
+            //     }),
+            //   });
+          }
+        }
+      );
 
       const data = await response.json();
       if (!response.ok) {
@@ -54,13 +66,7 @@ const CreateAuction: React.FC = () => {
 
       toast.success('Auction created successfully!');
       navigate(`/auction/${data.auction.id}`);
-    } catch (error) {
-      console.error('Error creating auction:', error);
-      toast.error(error.message || 'Failed to create auction');
-    } finally {
-      setIsSubmitting(false);
     }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -198,4 +204,4 @@ const CreateAuction: React.FC = () => {
   );
 };
 
-export default CreateAuction; 
+export default CreateAuction;

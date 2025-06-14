@@ -21,5 +21,3 @@ export const wagmiConfig = getDefaultConfig({
     }),
   },
 });
-
-export const 
