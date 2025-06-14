@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 
-// Create a context for Web3 state
 interface Web3ContextType {
   account: string | null;
   chainId: number | null;
@@ -22,10 +21,8 @@ const Web3Context = createContext<Web3ContextType>({
   provider: null,
 });
 
-// Hook to get the Web3 context
 export const useWeb3 = () => useContext(Web3Context);
 
-// Provider component
 export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [account, setAccount] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
@@ -36,7 +33,7 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const connect = async () => {
     if (connectionLock.current || isConnecting) return;
-    
+
     if (typeof window.ethereum === 'undefined') {
       alert('Please install MetaMask to use this feature');
       return;
@@ -49,15 +46,27 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
       await provider.send('eth_requestAccounts', []);
       const signer = provider.getSigner();
       const address = await signer.getAddress();
-      const network = await provider.getNetwork();
+      const message = `Login to NitroCanvas with ${address}`;
+      const signature = await signer.signMessage(message);
 
-      setAccount(address);
-      setChainId(network.chainId);
-      setProvider(provider);
-      setIsConnected(true);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_address: address, signature, message }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        setAccount(address);
+        setChainId((await provider.getNetwork()).chainId);
+        setProvider(provider);
+        setIsConnected(true);
+      } else {
+        throw new Error(data.message || 'Login failed');
+      }
     } catch (error) {
       console.error('Error connecting to MetaMask:', error);
-      alert('Failed to connect to MetaMask');
+      alert(`Failed to connect to MetaMask or login: ${error.message}`);
     } finally {
       setIsConnecting(false);
       connectionLock.current = false;
@@ -65,13 +74,13 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const disconnect = () => {
+    localStorage.removeItem('token');
     setAccount(null);
     setChainId(null);
     setProvider(null);
     setIsConnected(false);
   };
 
-  // Listen for account changes
   useEffect(() => {
     const ethereum = window.ethereum;
     if (!ethereum) return;
@@ -97,7 +106,6 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, []);
 
-  // Format the account address
   const formatAddress = (address: string) => {
     if (!address) return '';
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -118,4 +126,4 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
       {children}
     </Web3Context.Provider>
   );
-}; 
+};
