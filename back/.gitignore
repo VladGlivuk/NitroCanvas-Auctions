@@ -65,3 +65,9 @@ coverage/
 # Local development tools
 .eslintcache
 .prettiercache
+
+# Hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/

@@ -2,8 +2,14 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useNavigate } from 'react-router-dom';
+import { useWeb3 } from '@/shared/contexts/Web3Context';
+import { toast } from 'sonner';
 
 const CreateAuction: React.FC = () => {
+  const navigate = useNavigate();
+  const { account } = useWeb3();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -14,10 +20,43 @@ const CreateAuction: React.FC = () => {
     auctionDuration: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log('Form submitted:', formData);
+    if (!account) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          tokenId: formData.tokenId,
+          contractAddress: formData.nftAddress,
+          startingPrice: formData.initialPrice,
+          minBidIncrement: formData.minBidIncrement,
+          duration: parseInt(formData.auctionDuration) * 3600, // Convert hours to seconds
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create auction');
+      }
+
+      toast.success('Auction created successfully!');
+      navigate(`/auction/${data.auction.id}`);
+    } catch (error) {
+      console.error('Error creating auction:', error);
+      toast.error(error.message || 'Failed to create auction');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -146,8 +185,8 @@ const CreateAuction: React.FC = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full">
-              Create Auction
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating Auction...' : 'Create Auction'}
             </Button>
           </form>
         </CardContent>
