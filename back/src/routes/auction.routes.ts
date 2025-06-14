@@ -241,12 +241,8 @@ router.get('/:auctionId', async (req: Request<{ auctionId: string }>, res: Respo
       return res.status(404).json({ message: 'Auction not found' });
     }
 
-    // Get blockchain auction data
-    const contractAuction = await contractService.getAuction(auctionResult.rows[0].contract_auction_id);
-
     res.status(200).json({
       ...auctionResult.rows[0],
-      contractAuction,
     });
   } catch (error) {
     console.error('Error getting auction details:', error);
