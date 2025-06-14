@@ -23,7 +23,7 @@ export const login = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { walletAddress, signature, message } = req.body; // Updated to camelCase
+  const { walletAddress, signature, message } = req.body;
 
   try {
     if (!walletAddress || !signature || !message) {

@@ -52,7 +52,7 @@ export const Web3ContextProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet_address: address, signature, message }),
+        body: JSON.stringify({ walletAddress: address, signature, message }), // Updated to camelCase
       });
       const data = await response.json();
       if (response.ok) {

@@ -33,7 +33,7 @@ router.post(
     next: NextFunction
   ) => {
     const { tokenId, contractAddress, startTime, endTime } = req.body;
-    const sellerId = req.user?.walletAddress; // Updated to camelCase
+    const sellerId = req.user?.walletAddress;
 
     try {
       if (!sellerId || !tokenId || !contractAddress || !startTime || !endTime) {
@@ -60,7 +60,7 @@ router.post(
           nftId: tokenId,
           sellerId,
           highestBid: ethers.parseEther("0"),
-          currentOwner: sellerId, // Updated to camelCase
+          currentOwner: sellerId,
         },
       });
 
