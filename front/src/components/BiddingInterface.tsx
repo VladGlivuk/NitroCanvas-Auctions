@@ -244,7 +244,7 @@ export default function BiddingInterface({
   const canBid = address && !isOwner && auctionData.status === 'active';
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-gray-900 rounded-lg shadow-lg p-6 text-gray-100">
       {/* Connection Status */}
       <div className="flex items-center gap-2 mb-4">
         <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>

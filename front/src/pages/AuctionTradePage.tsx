@@ -174,7 +174,7 @@ export default function AuctionTradePage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+      <div className="max-w-4xl mx-auto bg-gray-900 rounded-lg shadow-lg p-6 text-gray-100">
         <h1 className="text-3xl font-bold mb-6">Auction Details</h1>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
