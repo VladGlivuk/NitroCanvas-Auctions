@@ -291,11 +291,18 @@ export default function BiddingInterface({
               {isPlacingBid ? 'Placing...' : 'Bid'}
             </button>
           </div>
-          {auctionData.starting_price && (
-            <p className="text-sm text-gray-500 mt-1">
-              Minimum bid: {formatEther(BigInt(auctionData.starting_price))} ETH
-            </p>
-          )}
+          {(() => {
+            const minIncrement = auctionData.min_bid_increment ? BigInt(auctionData.min_bid_increment) : BigInt(0);
+            const highestBid = auctionData.highest_bid ? BigInt(auctionData.highest_bid) : null;
+            const minBid = highestBid !== null && minIncrement > 0
+              ? highestBid + minIncrement
+              : auctionData.starting_price ? BigInt(auctionData.starting_price) : BigInt(0);
+            return (
+              <p className="text-sm text-gray-500 mt-1">
+                Minimum bid: {formatEther(minBid)} ETH
+              </p>
+            );
+          })()}
         </div>
       ) : (
         <div className="mb-6 p-4 bg-gray-100 rounded-md">
@@ -321,18 +328,18 @@ export default function BiddingInterface({
               {bids.map((bid, index) => (
                 <div
                   key={index}
-                  className="flex justify-between items-center p-3 bg-gray-50 rounded-md"
+                  className="flex justify-between items-center p-3 bg-gray-800 rounded-md"
                 >
                   <div>
-                    <div className="font-medium">
+                    <div className="font-medium text-gray-100">
                       {formatEther(BigInt(bid.amount))} ETH
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-sm text-gray-300">
                       {bid.bidder_id.slice(0, 6)}...{bid.bidder_id.slice(-4)}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-400">
                       {new Date(bid.timestamp).toLocaleTimeString()}
                     </div>
                     {bid.status && (

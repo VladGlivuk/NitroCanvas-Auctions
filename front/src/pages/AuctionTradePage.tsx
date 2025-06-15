@@ -58,6 +58,7 @@ export default function AuctionTradePage() {
           throw new Error('Failed to fetch auction details from backend');
         }
         const data: FullAuctionData = await response.json();
+        console.log('data', data);
         setAuctionDetails(data);
       } catch (error) {
         console.error('Error fetching auction details:', error);
