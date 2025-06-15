@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { useWeb3 } from '@/shared/contexts/Web3Context';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 interface LayoutProps {
@@ -10,7 +9,6 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
-  const { isConnected } = useWeb3();
 
   return (
     <div className="min-h-screen bg-background">
@@ -36,7 +34,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Link>
             </div>
             <div className="flex items-center gap-4">
-              {/* <WalletConnect /> */}
               <ConnectButton />
             </div>
           </nav>

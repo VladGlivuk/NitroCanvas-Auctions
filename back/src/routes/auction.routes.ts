@@ -250,4 +250,56 @@ router.get('/:auctionId', async (req: Request<{ auctionId: string }>, res: Respo
   }
 });
 
+// Get All Auctions with Pagination
+router.get('/', async (req: Request<{}, {}, {}, { page?: string; limit?: string; sellerId?: string }>, res: Response) => {
+  const page = parseInt(req.query.page || '1');
+  const limit = parseInt(req.query.limit || '10');
+  const offset = (page - 1) * limit;
+  const sellerId = req.query.sellerId?.toLowerCase();
+
+  try {
+    // Get total count of auctions
+    const countQuery = sellerId
+      ? 'SELECT COUNT(*) FROM auctions WHERE status = $1 OR (seller_id = $2 AND status != $3)'
+      : 'SELECT COUNT(*) FROM auctions WHERE status = $1';
+
+    const countParams = sellerId ? ['active', sellerId, 'cancelled'] : ['active'];
+
+    const totalCountResult = await pool.query(countQuery, countParams);
+    const totalAuctions = parseInt(totalCountResult.rows[0].count, 10);
+
+    // Get paginated auctions
+    const auctionsQuery = sellerId
+      ? `
+        SELECT *
+        FROM auctions
+        WHERE status = $1 OR (seller_id = $2 AND status != $3)
+        ORDER BY created_at DESC
+        LIMIT $4 OFFSET $5
+      `
+      : `
+        SELECT *
+        FROM auctions
+        WHERE status = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+      `;
+
+    const queryParams = sellerId ? ['active', sellerId, 'cancelled', limit, offset] : ['active', limit, offset];
+
+    const auctionsResult = await pool.query(auctionsQuery, queryParams);
+
+    res.status(200).json({
+      auctions: auctionsResult.rows,
+      totalAuctions,
+      currentPage: page,
+      perPage: limit,
+      totalPages: Math.ceil(totalAuctions / limit),
+    });
+  } catch (error) {
+    console.error('Error fetching all auctions:', error);
+    res.status(500).json({ error: 'Failed to fetch auctions' });
+  }
+});
+
 export default router;
