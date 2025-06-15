@@ -43,7 +43,7 @@ export class ERC7824Service {
       name: 'NFTMarketplaceAuction',
       version: '1',
       chainId: 11155111, // Sepolia
-      verifyingContract: '0x57aE8b6D5656a840c2deaA0f8547279daF1A8d0C' // Your contract
+      verifyingContract: marketplaceContract.target
     };
     
     console.log('ERC-7824 service initialized for domain:', this.domain);

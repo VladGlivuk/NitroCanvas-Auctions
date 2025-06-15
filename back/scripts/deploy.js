@@ -10,7 +10,7 @@ async function main() {
   console.log("Deploying NFTMarketplace contract...");
 
   // Get the contract factory
-  const NFTMarketplace = await hardhat.ethers.getContractFactory("NFTMarketplace");
+  const NFTMarketplace = await hardhat.ethers.getContractFactory("NFTMarketplaceERC7824");
   
   // Deploy the contract
   const nftMarketplace = await NFTMarketplace.deploy();

@@ -200,7 +200,8 @@ export default function BiddingInterface({
           amount: bidAmountWei.toString(),
           signature,
           nonce,
-          timestamp
+          timestamp,
+          bidder: address
         })
       });
 

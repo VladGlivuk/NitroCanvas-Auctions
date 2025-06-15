@@ -14,10 +14,10 @@ const CreateAuction: React.FC = () => {
   const [formData, setFormData] = useState<AuctionRequestType>({
     title: 'das',
     description: 'ddd',
-    contractAddress: '0x57aE8b6D5656a840c2deaA0f8547279daF1A8d0C',
-    tokenId: '12',
+    contractAddress: '0xe3952E164a6aBe42C06e4235a07F6F56b00F0b99',
+    tokenId: '19',
     startingPrice: '1',
-    minBidIncrement: '0.1',
+    minBidIncrement: '1',
     duration: 24, // Default 24 hours
   });
 
@@ -37,7 +37,7 @@ const CreateAuction: React.FC = () => {
           functionName: "createAuction",
           args: [
             '0x66601939Ff0374b67c985e08ECFee89677B59cA5' as `0x${string}`,
-            BigInt(17),
+            BigInt(18),
             1000000000000000000n,
             100000000000000000n,
             604800n

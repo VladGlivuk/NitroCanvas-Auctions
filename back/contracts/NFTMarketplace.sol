@@ -286,7 +286,7 @@ contract NFTMarketplaceERC7824 is ReentrancyGuard, Ownable, Pausable, EIP712 {
         uint256 _nonce,
         uint256 _timestamp,
         bytes memory _signature
-    ) external view returns (bool) {
+    ) internal view returns (bool) {
         Auction storage auction = auctions[_auctionId];
         require(auction.isActive, "Auction is not active");
         require(auction.isERC7824, "Not an ERC-7824 auction");
@@ -523,8 +523,7 @@ contract NFTMarketplaceERC7824 is ReentrancyGuard, Ownable, Pausable, EIP712 {
         emit ERC7824ChannelUpdated(_auctionId, _newChannelId);
     }
 
-    // View functions
-    function getAuction(
+    function getAuctionDetails(
         uint256 _auctionId
     )
         external
@@ -540,8 +539,7 @@ contract NFTMarketplaceERC7824 is ReentrancyGuard, Ownable, Pausable, EIP712 {
             address highestBidder,
             uint256 highestBid,
             bool isActive,
-            bool isERC7824,
-            string memory channelId
+            bool isERC7824
         )
     {
         Auction storage auction = auctions[_auctionId];
@@ -556,9 +554,14 @@ contract NFTMarketplaceERC7824 is ReentrancyGuard, Ownable, Pausable, EIP712 {
             auction.highestBidder,
             auction.highestBid,
             auction.isActive,
-            auction.isERC7824,
-            auctionToChannelId[_auctionId]
+            auction.isERC7824
         );
+    }
+
+    function getAuctionChannelId(
+        uint256 _auctionId
+    ) external view returns (string memory channelId) {
+        return auctionToChannelId[_auctionId];
     }
 
     function getBidderNonce(address _bidder) external view returns (uint256) {
