@@ -1,0 +1,37 @@
+# Project-wide gitignore for NitroCanvas Auctions
+
+# Test files and development tools
+test-*.html
+test-*.js
+test-*.ts
+test-*.md
+serve-*.js
+ERC7824-*.md
+ERC7824-*.txt
+ERC7824-*.json
+ERC7824-README.md
+
+# System files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Additional macOS files
+**/.DS_Store
+**/._*
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Log files
+*.log
+
+# Environment files (if any are in root)
+.env*

@@ -71,3 +71,35 @@ cache/
 artifacts/
 typechain/
 typechain-types/
+
+# Test files and development tools
+test-erc7824-flow.js
+test-auction-ui.html
+serve-test.js
+test-deployment-checklist.md
+test-*.html
+test-*.js
+test-*.ts
+test-*.md
+serve-*.js
+ERC7824-*.md
+ERC7824-*.txt
+ERC7824-*.json
+ERC7824-README.md
+
+# Development and testing artifacts
+**/test-erc7824.*
+**/serve-test.*
+**/test-auction-ui.*
+**/test-deployment-*
+.cleanup-test-files.sh
+
+# System files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Additional macOS files
+**/.DS_Store
+**/._*

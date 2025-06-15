@@ -4,8 +4,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { ethers } from 'ethers';
 import type { Request, Response } from 'express';
 import { ContractService } from '../services/contract.service.js';
+import { ERC7824Service } from '../services/erc7824Service.js';
+import { NftMarketplaceABI } from '../contracts/NFTMarketplaceABI.js';
 import { Router } from 'express';
-import { pool } from '../index.js';
+import { pool, provider, wallet } from '../index.js';
+import { env } from '../config/env.js';
+import { generateAuctionPricing, DEFAULT_AUCTION_PRICING } from '../utils/pricing.js';
 
 // Interfaces
 interface CreateAuctionRequest {
@@ -16,6 +20,9 @@ interface CreateAuctionRequest {
   title: string;
   description?: string;
   contractAuctionId?: number;
+  useERC7824?: boolean;
+  startingPrice?: string;
+  minBidIncrement?: string;
 }
 
 interface PlaceBidRequest {
@@ -26,9 +33,55 @@ interface PlaceBidRequest {
 const router = Router();
 const contractService = new ContractService();
 
+// Get current auction pricing based on USD equivalents
+router.get('/pricing', async (req: Request, res: Response) => {
+  try {
+    const pricing = await generateAuctionPricing({
+      minimumBidUsd: 1.0,  // $1 USD minimum
+      minIncrementUsd: 0.25 // $0.25 USD increment
+    });
+    
+    res.json({
+      success: true,
+      pricing: {
+        minimumBid: {
+          usd: pricing.minimumBidUsd,
+          eth: pricing.startingPriceEth,
+          wei: pricing.startingPriceWei
+        },
+        minIncrement: {
+          usd: pricing.minIncrementUsd,
+          eth: pricing.minIncrementEth,
+          wei: pricing.minIncrementWei
+        },
+        ethPrice: pricing.ethPriceUsd,
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting auction pricing:', error);
+    res.status(500).json({ error: 'Failed to get pricing information' });
+  }
+});
+
+// Initialize ERC-7824 service lazily to avoid initialization order issues
+let erc7824Service: ERC7824Service | null = null;
+
+const getERC7824Service = () => {
+  if (!erc7824Service) {
+    const marketplaceContract = new ethers.Contract(
+      env.MARKETPLACE_CONTRACT_ADDRESS,
+      NftMarketplaceABI,
+      wallet
+    );
+    erc7824Service = new ERC7824Service(pool, provider, marketplaceContract);
+  }
+  return erc7824Service;
+};
+
 // Create Auction
 router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest & { contractAddress: string }>, res: Response) => {
-  const { nftId, sellerId, startTime, endTime, title, description, contractAuctionId, contractAddress } = req.body;
+  const { nftId, sellerId, startTime, endTime, title, description, contractAuctionId, contractAddress, useERC7824, startingPrice, minBidIncrement } = req.body;
 
   // Debug: log incoming payload
   console.log('[Auction Create] Incoming payload:', req.body);
@@ -50,7 +103,20 @@ router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest & { cont
     // 1. NFT lookup logic removed.
     // nftUuid will now directly be nftId from the payload.
 
-    // 2. Insert auction with all required fields
+    // 2. Create ERC-7824 channel if requested
+    let channelId = null;
+    if (useERC7824) {
+      try {
+        const service = getERC7824Service();
+        channelId = await service.createAuctionChannel(uuidv4());
+        console.log('[Auction Create] Created ERC-7824 channel:', channelId);
+      } catch (error) {
+        console.error('[Auction Create] Failed to create ERC-7824 channel:', error);
+        return res.status(500).json({ error: 'Failed to create ERC-7824 channel' });
+      }
+    }
+
+    // 3. Insert auction with all required fields
     const query = `
       INSERT INTO auctions (
         id,
@@ -63,13 +129,16 @@ router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest & { cont
         title,
         description,
         highest_bidder,
-        highest_bid
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        highest_bid,
+        starting_price,
+        min_bid_increment
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `;
 
+    const auctionId = uuidv4();
     const values = [
-      uuidv4(), // id
+      auctionId, // id
       nftId, // nft_id (directly from payload)
       sellerId, // seller_id (wallet address)
       startTime, // start_time
@@ -80,31 +149,36 @@ router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest & { cont
       description || null, // description
       null, // highest_bidder
       null, // highest_bid
+      startingPrice ? ethers.parseEther(startingPrice).toString() : '0', // starting_price in wei
+      minBidIncrement ? ethers.parseEther(minBidIncrement).toString() : ethers.parseEther('0.01').toString(), // min_bid_increment in wei
     ];
 
     console.log('[Auction Create] Inserting auction with values:', values);
     const result = await pool.query(query, values);
     console.log('[Auction Create] Auction insert result:', result.rows);
-    res.status(201).json(result.rows[0]);
+    
+    // Include ERC-7824 channel info in response
+    const responseData = {
+      ...result.rows[0],
+      erc7824_enabled: useERC7824 || false,
+      channel_id: channelId
+    };
+    
+    res.status(201).json(responseData);
   } catch (error) {
     console.error('[Auction Create] Error creating auction:', error);
     res.status(500).json({ error: 'Failed to create auction' });
   }
 });
 
-// Place Bid
+// Place Bid (Deprecated - use ERC-7824 bidding via /api/bids)
 router.post('/:auctionId/bid', async (req: Request<{ auctionId: string }, {}, PlaceBidRequest>, res: Response) => {
   const { auctionId } = req.params;
-  const { bidAmount, bidderId } = req.body;
 
   try {
-    if (!bidderId || !bidAmount) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-
-    // Get auction from database
+    // Check if auction exists and get its type
     const auctionQuery = `
-      SELECT contract_auction_id, seller_id
+      SELECT starting_price, min_bid_increment
       FROM auctions
       WHERE id = $1 AND status = 'active'
     `;
@@ -114,28 +188,25 @@ router.post('/:auctionId/bid', async (req: Request<{ auctionId: string }, {}, Pl
       return res.status(404).json({ message: 'Auction not found or not active' });
     }
 
-    if (auctionResult.rows[0].seller_id === bidderId) {
-      return res.status(400).json({ message: 'Seller cannot bid on their own auction' });
+    // Check if auction has ERC-7824 pricing (starting_price set)
+    const hasERC7824Pricing = auctionResult.rows[0].starting_price && auctionResult.rows[0].starting_price !== '0';
+
+    if (hasERC7824Pricing) {
+      return res.status(400).json({ 
+        message: 'This auction uses ERC-7824 off-chain bidding. Please use /api/bids endpoint instead.',
+        redirect: `/api/bids`,
+        auction_id: auctionId
+      });
     }
 
-    // Place bid on blockchain
-    await contractService.placeBid(auctionResult.rows[0].contract_auction_id, bidAmount);
-
-    // Update auction in database
-    const updateQuery = `
-      UPDATE auctions
-      SET highest_bidder = $1, highest_bid = $2
-      WHERE id = $3
-      RETURNING id, highest_bidder, highest_bid
-    `;
-    const updateResult = await pool.query(updateQuery, [bidderId, bidAmount, auctionId]);
-
-    res.status(200).json({
-      auction: updateResult.rows[0],
+    // For legacy auctions without ERC-7824, fall back to old behavior
+    return res.status(400).json({ 
+      message: 'Legacy bidding not supported. Please use ERC-7824 bidding via /api/bids endpoint.',
+      redirect: `/api/bids`
     });
   } catch (error) {
-    console.error('Error placing bid:', error);
-    res.status(500).json({ error: 'Failed to place bid' });
+    console.error('Error processing bid:', error);
+    res.status(500).json({ error: 'Failed to process bid' });
   }
 });
 

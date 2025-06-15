@@ -6,6 +6,7 @@ import { parseEther, formatEther } from 'viem';
 import { NftMarketplaceABI } from '../../NTFMarketplace';
 import { NFTMarketplaceAddress } from '../contracts/NFTMarketplaceAddress';
 import { toast } from 'sonner';
+import BiddingInterface from '../components/BiddingInterface';
 
 // Define the interface for data directly from the backend's database query
 interface FullAuctionData {
@@ -20,7 +21,11 @@ interface FullAuctionData {
   description?: string;
   highest_bidder?: string; // Wallet address
   highest_bid?: string; // Decimal string
+  starting_price?: string; // ERC-7824 starting price in wei
+  min_bid_increment?: string; // ERC-7824 minimum bid increment in wei
   created_at: string;
+  erc7824_enabled?: boolean; // Whether this auction uses ERC-7824
+  channel_id?: string; // ERC-7824 channel ID
 }
 
 export default function AuctionTradePage() {
@@ -30,14 +35,7 @@ export default function AuctionTradePage() {
 
   const [auctionDetails, setAuctionDetails] = useState<FullAuctionData | null>(null);
   const [isLoadingAuctionDetails, setIsLoadingAuctionDetails] = useState(true);
-  const [bidAmount, setBidAmount] = useState('');
   const [timeLeft, setTimeLeft] = useState('');
-
-  // No direct useContractRead here for fetching auction data; it comes from backend
-
-  // Place bid
-  const { writeContract: placeBid, data: bidData } = useContractWrite();
-  const { isLoading: isBidLoading, isSuccess: isBidSuccess } = useWaitForTransactionReceipt({ hash: bidData, });
 
   // Complete auction
   const { writeContract: completeAuction, data: completeData } = useContractWrite();
@@ -98,22 +96,6 @@ export default function AuctionTradePage() {
   }, [auctionDetails]); // Depend on auctionDetails
 
   // Effects for transaction success (re-fetch data to update UI)
-  useEffect(() => {
-    if (isBidSuccess) {
-      toast.success('Bid placed successfully!');
-      setBidAmount('');
-      // Re-fetch database auction details to update UI after a bid
-      if (dbAuctionId) {
-        fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${dbAuctionId}`)
-          .then(res => {
-            if (!res.ok) throw new Error('Failed to re-fetch auction after bid');
-            return res.json();
-          })
-          .then(data => setAuctionDetails(data))
-          .catch(err => console.error('Failed to re-fetch auction after bid:', err));
-      }
-    }
-  }, [isBidSuccess, dbAuctionId]);
 
   useEffect(() => {
     if (isCompleteSuccess) {
@@ -157,23 +139,6 @@ export default function AuctionTradePage() {
     }
   }, [isCancelSuccess, navigate, dbAuctionId]);
 
-  const handlePlaceBid = () => {
-    // Use contractAuctionId from fetched auctionDetails for contract calls
-    if (!bidAmount || !auctionDetails || auctionDetails.contract_auction_id === undefined) return;
-    
-    try {
-      const bidAmountWei = parseEther(bidAmount);
-      placeBid({
-        address: NFTMarketplaceAddress,
-        abi: NftMarketplaceABI,
-        functionName: 'placeBid',
-        args: [BigInt(auctionDetails.contract_auction_id)], // Use contractAuctionId
-        value: bidAmountWei,
-      });
-    } catch {
-      toast.error('Invalid bid amount');
-    }
-  };
 
   const handleCompleteAuction = () => {
     // Use contractAuctionId from fetched auctionDetails for contract calls
@@ -206,60 +171,26 @@ export default function AuctionTradePage() {
 
   // Use database data for display and logic
   const isSeller = address?.toLowerCase() === auctionDetails.seller_id.toLowerCase();
-  const canBid = !isSeller && auctionDetails.status === 'active';
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
         <h1 className="text-3xl font-bold mb-6">Auction Details</h1>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Auction Information */}
+          <div className="lg:col-span-1">
             <h2 className="text-xl font-semibold mb-4">Auction Information</h2>
             <div className="space-y-4">
               <p><span className="font-medium">Seller:</span> {auctionDetails.seller_id}</p>
               <p><span className="font-medium">NFT Token ID:</span> {auctionDetails.nft_id}</p>
-              {/* Note: NFT Contract Address is not directly available from the current DB fetch */}
-              <p><span className="font-medium">Starting Price:</span> (Not available from DB directly)</p>
-              <p><span className="font-medium">Minimum Bid Increment:</span> (Not available from DB directly)</p>
-              <p><span className="font-medium">Current Highest Bid:</span> {auctionDetails.highest_bid ? formatEther(BigInt(auctionDetails.highest_bid)) : '0'} ETH</p>
-              <p><span className="font-medium">Highest Bidder:</span> {auctionDetails.highest_bidder || 'None'}</p>
               <p><span className="font-medium">Time Left:</span> {timeLeft}</p>
               <p><span className="font-medium">Status:</span> {auctionDetails.status === 'active' ? 'Active' : 'Ended'}</p>
               <p><span className="font-medium">Title:</span> {auctionDetails.title}</p>
               {auctionDetails.description && <p><span className="font-medium">Description:</span> {auctionDetails.description}</p>}
             </div>
-          </div>
 
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Place Bid</h2>
-            {canBid ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Bid Amount (ETH)</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={bidAmount}
-                    onChange={(e) => setBidAmount(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    placeholder="Enter bid amount"
-                  />
-                </div>
-                <button
-                  onClick={handlePlaceBid}
-                  disabled={isBidLoading || !bidAmount}
-                  className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:bg-gray-400"
-                >
-                  {isBidLoading ? 'Placing Bid...' : 'Place Bid'}
-                </button>
-              </div>
-            ) : (
-              <p className="text-gray-500">
-                {isSeller ? "You can't bid on your own auction" : `This auction is ${auctionDetails.status}`}
-              </p>
-            )}
-
+            {/* Seller Actions */}
             {isSeller && auctionDetails.status === 'active' && (
               <div className="mt-6 space-y-4">
                 <button
@@ -279,9 +210,24 @@ export default function AuctionTradePage() {
               </div>
             )}
           </div>
+
+          {/* ERC-7824 Bidding Interface */}
+          <div className="lg:col-span-2">
+            <BiddingInterface
+              auctionId={auctionDetails.id}
+              auctionData={{
+                highest_bid: auctionDetails.highest_bid,
+                highest_bidder: auctionDetails.highest_bidder,
+                end_time: auctionDetails.end_time,
+                status: auctionDetails.status,
+                starting_price: auctionDetails.starting_price,
+                min_bid_increment: auctionDetails.min_bid_increment
+              }}
+              userAddress={auctionDetails.seller_id}
+            />
+          </div>
         </div>
       </div>
     </div>
   );
 }
-// END OF CODE TO COPY AND PASTE
