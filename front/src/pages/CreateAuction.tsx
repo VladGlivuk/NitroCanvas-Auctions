@@ -37,7 +37,7 @@ const CreateAuction: React.FC = () => {
           functionName: "createAuction",
           args: [
             '0x66601939Ff0374b67c985e08ECFee89677B59cA5' as `0x${string}`,
-            BigInt(19),
+            BigInt(formData.tokenId),
             1000000000000000000n,
             100000000000000000n,
             604800n
