@@ -275,17 +275,43 @@ router.post('/:auctionId/cancel', async (req: Request<{ auctionId: string }, {},
       return res.status(403).json({ message: 'Only seller can cancel auction' });
     }
 
-    // Cancel auction on blockchain
-    await contractService.cancelAuction(auctionResult.rows[0].contract_auction_id);
+    // Cancel auction on blockchain (only for legacy auctions with valid contract_auction_id)
+    if (auctionResult.rows[0].contract_auction_id && auctionResult.rows[0].contract_auction_id !== null) {
+      console.log('Cancelling legacy auction on blockchain with contract_auction_id:', auctionResult.rows[0].contract_auction_id);
+      await contractService.cancelAuction(auctionResult.rows[0].contract_auction_id);
+    } else {
+      console.log('Cancelling ERC-7824 auction (no blockchain interaction needed)');
+      // For ERC-7824 auctions, no blockchain interaction is needed since bids are off-chain
+    }
 
     // Update auction status in database
     const updateQuery = `
       UPDATE auctions
       SET status = 'cancelled'
       WHERE id = $1
-      RETURNING id, status
+      RETURNING id, status, title, seller_id
     `;
     const updateResult = await pool.query(updateQuery, [auctionId]);
+
+    // Send WebSocket notifications about auction cancellation
+    const wss = req.app.get('wss');
+    if (wss) {
+      const cancelMessage = {
+        type: 'auction_cancelled',
+        auctionId: auctionId,
+        title: updateResult.rows[0].title,
+        sellerId: updateResult.rows[0].seller_id,
+        message: 'This auction has been cancelled by the seller.'
+      };
+
+      wss.clients.forEach((client: any) => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+          client.send(JSON.stringify(cancelMessage));
+        }
+      });
+
+      console.log('Sent auction cancellation notifications');
+    }
 
     res.status(200).json({
       auction: updateResult.rows[0],

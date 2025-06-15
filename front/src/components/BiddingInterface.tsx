@@ -74,6 +74,9 @@ export default function BiddingInterface({
               } else {
                 toast.info(`📢 This auction has been completed. Winner: ${data.winner.slice(0, 6)}...${data.winner.slice(-4)}`);
               }
+            } else if (data.type === 'auction_cancelled' && data.auctionId === auctionId) {
+              // Show notification about auction cancellation
+              toast.info(`📢 This auction has been cancelled by the seller`);
             }
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);

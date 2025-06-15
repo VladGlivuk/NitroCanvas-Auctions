@@ -121,6 +121,18 @@ export default function AuctionTradePage() {
             navigate('/');
           }, 3000); // 3 second delay to let user read the message
         }
+
+        if (data.type === 'auction_cancelled' && data.auctionId === dbAuctionId) {
+          // Show cancellation message and redirect
+          if (data.sellerId === address) {
+            toast.success(`✅ You have successfully cancelled auction "${data.title}"`);
+          } else {
+            toast.info(`📢 Auction "${data.title}" has been cancelled by the seller`);
+          }
+          setTimeout(() => {
+            navigate('/');
+          }, 3000);
+        }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
       }

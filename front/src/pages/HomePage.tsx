@@ -75,6 +75,16 @@ const HomePage: React.FC = () => {
           // Refresh auctions list to show updated status
           fetchAuctions(currentPage);
         }
+
+        if (data.type === 'auction_cancelled') {
+          // Show general notifications for auction cancellations
+          if (data.sellerId === address) {
+            toast.success(`✅ Your auction "${data.title}" has been cancelled`);
+          }
+          
+          // Refresh auctions list to show updated status
+          fetchAuctions(currentPage);
+        }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
       }
