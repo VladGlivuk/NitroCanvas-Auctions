@@ -67,6 +67,13 @@ export default function BiddingInterface({
               fetchBids();
             } else if (data.type === 'subscribed') {
               console.log(`Subscribed to auction ${data.auctionId}`);
+            } else if (data.type === 'auction_completed' && data.auctionId === auctionId) {
+              // Show notification about auction completion for bidders
+              if (data.winner === address) {
+                toast.success(`🎉 Congratulations! You won this auction!`);
+              } else {
+                toast.info(`📢 This auction has been completed. Winner: ${data.winner.slice(0, 6)}...${data.winner.slice(-4)}`);
+              }
             }
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);

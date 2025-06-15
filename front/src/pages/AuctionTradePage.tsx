@@ -1,10 +1,7 @@
 // START OF CODE TO COPY AND PASTE INTO front/src/pages/AuctionTradePage.tsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useContractWrite, useWaitForTransactionReceipt, useAccount } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
-import { NftMarketplaceABI } from '../../NTFMarketplace';
-import { NFTMarketplaceAddress } from '../contracts/NFTMarketplaceAddress';
+import { useAccount } from 'wagmi';
 import { toast } from 'sonner';
 import BiddingInterface from '../components/BiddingInterface';
 
@@ -36,14 +33,8 @@ export default function AuctionTradePage() {
   const [auctionDetails, setAuctionDetails] = useState<FullAuctionData | null>(null);
   const [isLoadingAuctionDetails, setIsLoadingAuctionDetails] = useState(true);
   const [timeLeft, setTimeLeft] = useState('');
+  const [isSettling, setIsSettling] = useState(false);
 
-  // Complete auction
-  const { writeContract: completeAuction, data: completeData } = useContractWrite();
-  const { isLoading: isCompleteLoading, isSuccess: isCompleteSuccess } = useWaitForTransactionReceipt({ hash: completeData, });
-
-  // Cancel auction
-  const { writeContract: cancelAuction, data: cancelData } = useContractWrite();
-  const { isLoading: isCancelLoading, isSuccess: isCancelSuccess } = useWaitForTransactionReceipt({ hash: cancelData, });
 
   // Effect to fetch auction details from OUR backend API (initial fetch)
   useEffect(() => {
@@ -96,70 +87,150 @@ export default function AuctionTradePage() {
     }
   }, [auctionDetails]); // Depend on auctionDetails
 
-  // Effects for transaction success (re-fetch data to update UI)
-
+  // WebSocket effect for real-time notifications
   useEffect(() => {
-    if (isCompleteSuccess) {
-      toast.success('Auction completed successfully on blockchain!');
-      if (dbAuctionId && address) {
-        fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${dbAuctionId}/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sellerId: address }),
-        })
-        .then(response => {
-          if (!response.ok) throw new Error('Failed to complete auction in database');
-          return response.json();
-        })
-        .then(() => {
-          toast.success('Auction status updated in database!');
-          navigate('/');
-        })
-        .catch(error => {
-          console.error('Error updating auction in database:', error);
-          toast.error('Failed to update auction status in database');
-        });
+    if (!dbAuctionId) return;
+
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws';
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('WebSocket connected for auction notifications');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Received WebSocket message:', data);
+
+        if (data.type === 'auction_completed' && data.auctionId === dbAuctionId) {
+          // Show notification about auction completion
+          if (data.winner === address) {
+            toast.success(`🎉 Congratulations! You won the auction "${data.title}" with a bid of ${data.winningAmount} ETH!`);
+          } else if (data.sellerId === address) {
+            toast.success(`✅ Your auction "${data.title}" has been completed! Winner: ${data.winner.slice(0, 6)}...${data.winner.slice(-4)}`);
+          } else {
+            toast.info(`📢 Auction "${data.title}" has been completed. Winner: ${data.winner.slice(0, 6)}...${data.winner.slice(-4)}`);
+          }
+        }
+
+        if (data.type === 'auction_redirect' && data.auctionId === dbAuctionId) {
+          // Show redirect message and navigate to home
+          toast.info(data.message);
+          setTimeout(() => {
+            navigate('/');
+          }, 3000); // 3 second delay to let user read the message
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
-    }
-  }, [isCompleteSuccess, dbAuctionId, address, navigate]);
+    };
 
-  useEffect(() => {
-    if (isCancelSuccess) {
-      toast.success('Auction cancelled successfully!');
-      // Update local state or re-fetch to reflect cancellation
-      if (dbAuctionId) {
-         fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${dbAuctionId}`)
-          .then(res => {
-            if (!res.ok) throw new Error('Failed to re-fetch auction after cancel');
-            return res.json();
-          })
-          .then(data => setAuctionDetails(data))
-          .catch(err => console.error('Failed to re-fetch auction after cancel:', err));
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [dbAuctionId, address, navigate]);
+
+  const handleCompleteAuction = async () => {
+    console.log('handleCompleteAuction called');
+    console.log('auctionDetails:', auctionDetails);
+    
+    if (!auctionDetails) {
+      console.log('Early return: missing auction details');
+      toast.error('Auction details not loaded');
+      return;
+    }
+    
+    try {
+      setIsSettling(true);
+      
+      // Call backend API to settle the auction (handles ERC-7824 logic)
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${auctionDetails.id}/settle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (response.ok) {
+        await response.json();
+        toast.success('Auction completed successfully!');
+        
+        // Refresh auction details
+        const updatedResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${auctionDetails.id}`);
+        if (updatedResponse.ok) {
+          const updatedData = await updatedResponse.json();
+          setAuctionDetails(updatedData);
+        }
+      } else {
+        const error = await response.json();
+        console.error('Settlement error:', error);
+        toast.error(error.message || 'Failed to complete auction');
       }
-      navigate('/');
+    } catch (error: any) {
+      console.error('Error completing auction:', error);
+      toast.error(error.message || 'Failed to complete auction');
+    } finally {
+      setIsSettling(false);
     }
-  }, [isCancelSuccess, navigate, dbAuctionId]);
-
-
-  const handleCompleteAuction = () => {
-    // Use contractAuctionId from fetched auctionDetails for contract calls
-    if (!auctionDetails || auctionDetails.contract_auction_id === undefined) return;
-    completeAuction({
-      address: NFTMarketplaceAddress,
-      abi: NftMarketplaceABI,
-      functionName: 'completeAuction',
-      args: [BigInt(auctionDetails.contract_auction_id)], // Use contractAuctionId
-    });
   };
 
-  const handleCancelAuction = () => {
-    if (!auctionDetails || auctionDetails.contract_auction_id === undefined) return;
-    cancelAuction({
-      address: NFTMarketplaceAddress,
-      abi: NftMarketplaceABI,
-      functionName: 'cancelAuction',
-      args: [BigInt(auctionDetails.contract_auction_id)], // Use contractAuctionId
-    });
+  const handleCancelAuction = async () => {
+    console.log('handleCancelAuction called');
+    console.log('auctionDetails:', auctionDetails);
+    
+    if (!auctionDetails || !address) {
+      toast.error('Missing auction details or wallet connection');
+      return;
+    }
+    
+    try {
+      setIsSettling(true);
+      
+      // Call backend API to cancel the auction
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${auctionDetails.id}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          sellerId: address
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Auction cancelled successfully!');
+        
+        // Refresh auction details
+        const updatedResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${auctionDetails.id}`);
+        if (updatedResponse.ok) {
+          const updatedData = await updatedResponse.json();
+          setAuctionDetails(updatedData);
+        }
+        
+        // Navigate back to home
+        navigate('/');
+      } else {
+        const error = await response.json();
+        console.error('Cancel error:', error);
+        toast.error(error.message || 'Failed to cancel auction');
+      }
+    } catch (error: any) {
+      console.error('Error cancelling auction:', error);
+      toast.error(error.message || 'Failed to cancel auction');
+    } finally {
+      setIsSettling(false);
+    }
   };
 
   if (isLoadingAuctionDetails) { 
@@ -196,17 +267,17 @@ export default function AuctionTradePage() {
               <div className="mt-6 space-y-4">
                 <button
                   onClick={handleCompleteAuction}
-                  disabled={isCompleteLoading}
+                  disabled={isSettling}
                   className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-400"
                 >
-                  {isCompleteLoading ? 'Completing...' : 'Complete Auction'}
+                  {isSettling ? 'Settling...' : 'Complete Auction'}
                 </button>
                 <button
                   onClick={handleCancelAuction}
-                  disabled={isCancelLoading}
+                  disabled={isSettling}
                   className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:bg-gray-400"
                 >
-                  {isCancelLoading ? 'Cancelling...' : 'Cancel Auction'}
+                  {isSettling ? 'Cancelling...' : 'Cancel Auction'}
                 </button>
               </div>
             )}

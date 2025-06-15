@@ -50,6 +50,49 @@ const HomePage: React.FC = () => {
     return () => clearInterval(interval);
   }, [currentPage]);
 
+  // WebSocket effect for real-time auction notifications
+  useEffect(() => {
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3000/ws';
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('WebSocket connected for home page notifications');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Home page received WebSocket message:', data);
+
+        if (data.type === 'auction_completed') {
+          // Show general notifications for auction completions
+          if (data.winner === address) {
+            toast.success(`🎉 You won auction "${data.title}"!`);
+          } else if (data.sellerId === address) {
+            toast.success(`✅ Your auction "${data.title}" completed successfully!`);
+          }
+          
+          // Refresh auctions list to show updated status
+          fetchAuctions(currentPage);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('Home page WebSocket disconnected');
+    };
+
+    ws.onerror = (error) => {
+      console.error('Home page WebSocket error:', error);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [address, currentPage]);
+
   // Function to fetch NFT metadata from token_uri
   const fetchNFTMetadata = async (tokenUri: string): Promise<any> => {
     try {

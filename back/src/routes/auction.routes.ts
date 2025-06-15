@@ -373,4 +373,47 @@ router.get('/', async (req: Request<{}, {}, {}, { page?: string; limit?: string;
   }
 });
 
+// Settle Auction (ERC-7824 compatible)
+router.post('/:auctionId/settle', async (req: Request<{ auctionId: string }>, res: Response) => {
+  const { auctionId } = req.params;
+
+  try {
+    console.log(`Settling auction ${auctionId}`);
+
+    // Get WebSocket server from app
+    const wss = req.app.get('wss');
+
+    // Initialize ERC7824Service
+    console.log('MARKETPLACE_CONTRACT_ADDRESS:', env.MARKETPLACE_CONTRACT_ADDRESS);
+    console.log('Wallet address:', wallet.address);
+    
+    const marketplaceContract = new ethers.Contract(
+      env.MARKETPLACE_CONTRACT_ADDRESS,
+      NftMarketplaceABI,
+      wallet
+    );
+    
+    console.log('Created marketplaceContract:', marketplaceContract.target);
+    console.log('Contract interface fragments:', marketplaceContract.interface.fragments.length);
+    
+    const erc7824Service = new ERC7824Service(pool, provider, marketplaceContract, wss);
+    
+    // Call settlement logic
+    await erc7824Service.settleAuction(auctionId);
+    
+    console.log('Settlement completed successfully');
+
+    res.status(200).json({
+      message: 'Auction settled successfully',
+      auctionId: auctionId
+    });
+  } catch (error: any) {
+    console.error('Error settling auction:', error);
+    res.status(500).json({ 
+      error: 'Failed to settle auction',
+      message: error.message 
+    });
+  }
+});
+
 export default router;

@@ -28,15 +28,21 @@ export class ERC7824Service {
   private channels: Map<string, AuctionChannelState> = new Map();
   private wsConnections: Map<string, WebSocket[]> = new Map();
   private domain: any;
+  private wss?: any;
 
   constructor(
     db: Pool,
     provider: ethers.Provider,
-    marketplaceContract: ethers.Contract
+    marketplaceContract: ethers.Contract,
+    wss?: any
   ) {
     this.db = db;
     this.provider = provider;
     this.marketplaceContract = marketplaceContract;
+    this.wss = wss;
+    
+    console.log('ERC7824Service constructor - marketplaceContract:', !!marketplaceContract);
+    console.log('ERC7824Service constructor - marketplaceContract.target:', marketplaceContract?.target);
     
     // Initialize domain synchronously for testing
     this.domain = {
@@ -266,6 +272,14 @@ export class ERC7824Service {
 
       const auction = auctionResult.rows[0];
       
+      console.log('Auction data:', {
+        id: auction.id,
+        contract_auction_id: auction.contract_auction_id,
+        status: auction.status,
+        winning_amount: auction.winning_amount,
+        bidder_id: auction.bidder_id
+      });
+      
       // Update auction status
       await this.db.query(
         'UPDATE auctions SET settlement_status = $1, settlement_attempted_at = $2 WHERE id = $3',
@@ -276,8 +290,15 @@ export class ERC7824Service {
         // No bids, return NFT to seller
         await this.handleNoBidsSettlement(auction);
       } else {
-        // Process winning bid settlement
-        await this.processWinningBidSettlement(auction);
+        // Check if this is an ERC-7824 auction (no valid contract_auction_id)
+        if (!auction.contract_auction_id || auction.contract_auction_id === null) {
+          console.log('Processing ERC-7824 auction settlement (no contract_auction_id)');
+          await this.processERC7824Settlement(auction);
+        } else {
+          // Process legacy auction settlement
+          console.log('Processing legacy auction settlement with contract_auction_id:', auction.contract_auction_id);
+          await this.processWinningBidSettlement(auction);
+        }
       }
 
     } catch (error) {
@@ -304,13 +325,57 @@ export class ERC7824Service {
     }
   }
 
+  private async processERC7824Settlement(auction: any): Promise<void> {
+    try {
+      console.log('Processing ERC-7824 settlement for auction:', auction.id);
+      
+      // For ERC-7824 auctions, we just need to mark them as completed
+      // The bids are off-chain and don't need blockchain settlement
+      await this.db.query(
+        'UPDATE auctions SET status = $1, settlement_status = $2 WHERE id = $3',
+        ['completed', 'completed', auction.id]
+      );
+
+      // Send notifications about auction completion
+      await this.sendAuctionCompletionNotifications(auction);
+
+      console.log('ERC-7824 auction marked as completed:', auction.id);
+      
+    } catch (error) {
+      console.error('Error in ERC-7824 settlement:', error);
+      throw error;
+    }
+  }
+
   private async processWinningBidSettlement(auction: any): Promise<void> {
     try {
+      console.log('processWinningBidSettlement - this.marketplaceContract:', !!this.marketplaceContract);
+      console.log('processWinningBidSettlement - auction.contract_auction_id:', auction.contract_auction_id);
+      
+      if (!this.marketplaceContract) {
+        throw new Error('marketplaceContract is not defined');
+      }
+      
       // Call smart contract settlement function
-      const tx = await this.marketplaceContract.completeAuction(
+      console.log('About to call completeAuction with contract_auction_id:', auction.contract_auction_id);
+      console.log('Contract methods available:', Object.getOwnPropertyNames(this.marketplaceContract));
+      
+      if (!auction.contract_auction_id) {
+        throw new Error('contract_auction_id is null or undefined');
+      }
+      
+      const contractCall = this.marketplaceContract.completeAuction(
         auction.contract_auction_id,
         { gasLimit: 500000 }
       );
+      
+      console.log('Contract call result:', contractCall);
+      
+      if (!contractCall || typeof contractCall.then !== 'function') {
+        throw new Error('Contract call did not return a promise');
+      }
+      
+      const tx = await contractCall;
 
       // Store settlement attempt
       const settlementId = ethers.keccak256(ethers.toUtf8Bytes(`${auction.id}_${Date.now()}`));
@@ -444,6 +509,65 @@ export class ERC7824Service {
   // Get channel state for auction
   getChannelState(channelId: string): AuctionChannelState | null {
     return this.channels.get(channelId) || null;
+  }
+
+  // Send notifications about auction completion
+  private async sendAuctionCompletionNotifications(auction: any): Promise<void> {
+    try {
+      console.log('Sending auction completion notifications for:', auction.id);
+
+      // Get all bidders for this auction
+      const biddersResult = await this.db.query(`
+        SELECT DISTINCT bidder_id
+        FROM bids 
+        WHERE auction_id = $1
+      `, [auction.id]);
+
+      const bidders = biddersResult.rows.map(row => row.bidder_id);
+      
+      // Determine winner
+      const winnerAddress = auction.bidder_id;
+      const winningAmount = auction.winning_amount;
+
+      // Broadcast to WebSocket clients
+      if (this.wss) {
+        const completionMessage = {
+          type: 'auction_completed',
+          auctionId: auction.id,
+          winner: winnerAddress,
+          winningAmount: winningAmount,
+          title: auction.title,
+          sellerId: auction.seller_id
+        };
+
+        // Send to all connected clients
+        this.wss.clients.forEach((client: any) => {
+          if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(JSON.stringify(completionMessage));
+          }
+        });
+
+        console.log('Sent WebSocket notifications to all clients');
+      }
+
+      // Send redirect message specifically for the auction page
+      if (this.wss) {
+        const redirectMessage = {
+          type: 'auction_redirect',
+          auctionId: auction.id,
+          message: 'Auction has been completed. Redirecting to home page...'
+        };
+
+        this.wss.clients.forEach((client: any) => {
+          if (client.readyState === 1) {
+            client.send(JSON.stringify(redirectMessage));
+          }
+        });
+      }
+
+    } catch (error) {
+      console.error('Failed to send auction completion notifications:', error);
+    }
   }
 
   // Cleanup method
