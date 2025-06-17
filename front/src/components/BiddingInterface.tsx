@@ -322,9 +322,6 @@ export default function BiddingInterface({
             Starting price: {auctionData.starting_price ? formatEther(BigInt(auctionData.starting_price)) : '0'} ETH (~${auctionData.starting_price ? ethToUsd(formatEther(BigInt(auctionData.starting_price)), ethPrice) : '0'} USD)
           </p>
         )}
-        <p className="text-sm text-gray-500 mt-1">
-          Time left: {formatTimeLeft()}
-        </p>
       </div>
 
       {/* Bidding Form */}
@@ -404,9 +401,9 @@ export default function BiddingInterface({
               {bids.map((bid, index) => (
                 <div
                   key={index}
-                  className="flex justify-between items-center p-3 bg-gray-800 rounded-md"
+                  className="flex justify-between items-start p-3 bg-gray-800 rounded-md min-h-[60px]"
                 >
-                  <div>
+                  <div className="flex-1">
                     <div className="font-medium text-gray-100">
                       {formatEther(BigInt(bid.amount))} ETH
                     </div>
@@ -414,12 +411,12 @@ export default function BiddingInterface({
                       {bid.bidder_id.slice(0, 6)}...{bid.bidder_id.slice(-4)}
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0 ml-4">
                     <div className="text-sm text-gray-400">
                       {new Date(bid.timestamp).toLocaleTimeString()}
                     </div>
                     {bid.status && (
-                      <div className={`text-xs px-2 py-1 rounded ${
+                      <div className={`text-xs px-2 py-1 rounded mt-1 ${
                         bid.status === 'valid' 
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-red-100 text-red-800'

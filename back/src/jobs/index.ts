@@ -108,43 +108,16 @@ cron.schedule('*/30 * * * * *', async () => {
           WHERE id = $4
         `, [tx.hash, winningBid.bidder, winningBid.amount, auction.id]);
 
-        // Record successful settlement
-        await pool.query(`
-          INSERT INTO settlement_attempts 
-          (id, auction_id, winning_bid_id, tx_hash, status, gas_used, block_number, completed_at)
-          VALUES ($1, $2, $3, $4, 'success', $5, $6, $7)
-        `, [
-          ethers.keccak256(ethers.toUtf8Bytes(`${auction.id}_${Date.now()}`)),
-          auction.id,
-          winningBid.bidder,
-          tx.hash,
-          receipt.gasUsed.toString(),
-          receipt.blockNumber,
-          new Date()
-        ]);
 
         console.log(`✅ Auction ${auction.id} settled successfully`);
 
       } catch (auctionError: any) {
         console.error(`❌ Failed to settle auction ${auction.id}:`, auctionError.message);
         
-        // Mark settlement as failed
         await pool.query(
-          'UPDATE auctions SET settlement_status = $1 WHERE id = $2',
-          ['failed', auction.id]
+          'UPDATE auctions SET settlement_status = $1, settlement_error = $2 WHERE id = $3',
+          ['failed', auctionError.message, auction.id]
         );
-
-        // Record failed settlement attempt
-        await pool.query(`
-          INSERT INTO settlement_attempts 
-          (id, auction_id, status, error_message, attempted_at)
-          VALUES ($1, $2, 'failed', $3, $4)
-        `, [
-          ethers.keccak256(ethers.toUtf8Bytes(`${auction.id}_${Date.now()}`)),
-          auction.id,
-          auctionError.message,
-          new Date()
-        ]);
       }
     }
 
@@ -176,11 +149,12 @@ cron.schedule('*/5 * * * *', async () => {
       `);
     }
 
-    // Clean up very old failed settlement attempts (older than 7 days)
+    // Clean up old error messages from failed settlements (older than 30 days)
     await pool.query(`
-      DELETE FROM settlement_attempts 
-      WHERE status = 'failed' 
-        AND attempted_at < NOW() - INTERVAL '7 days'
+      UPDATE auctions 
+      SET settlement_error = NULL
+      WHERE settlement_status = 'failed' 
+        AND settlement_attempted_at < NOW() - INTERVAL '30 days'
     `);
 
   } catch (error: any) {

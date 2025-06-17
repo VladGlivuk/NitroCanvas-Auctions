@@ -68,7 +68,6 @@ export default function CreateAuction() {
       }
 
       const auction = await response.json();
-      // Redirect to auction page
       window.location.href = `/auction/${auction.id}`;
     } catch (error) {
       console.error('Error creating auction:', error);

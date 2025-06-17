@@ -392,35 +392,69 @@ const HomePage: React.FC = () => {
             const isSeller = address?.toLowerCase() === auction.seller_id.toLowerCase();
             const canJoinAuction = !isSeller && auction.status === 'active';
 
+            const isActive = auction.status === 'active';
+            const isExpired = new Date(auction.end_time).getTime() < new Date().getTime();
+            
             return (
-              <Card key={auction.id} className="overflow-hidden h-fit cursor-pointer" onClick={() => goToAuctionPage(auction)}>
+              <Card 
+                key={auction.id} 
+                className={`overflow-hidden h-full cursor-pointer flex flex-col transition-all duration-200 ${
+                  isActive && !isExpired
+                    ? 'ring-2 ring-gray-800 shadow-lg hover:shadow-xl bg-white border-gray-800' 
+                    : 'opacity-60 hover:opacity-80 bg-gray-50/50'
+                }`} 
+                onClick={() => goToAuctionPage(auction)}
+              >
+
                 <NFTImage auction={auction} />
-                <CardHeader className="p-3">
-                  <CardTitle className="text-sm font-semibold truncate">{auction.title}</CardTitle>
+                <CardHeader className="p-3 flex-shrink-0">
+                  <CardTitle className={`text-sm font-semibold truncate ${
+                    isActive && !isExpired ? 'text-gray-900' : 'text-gray-600'
+                  }`}>
+                    {auction.title}
+                  </CardTitle>
                   {auction.description && (
-                    <CardDescription className="text-xs line-clamp-2">{auction.description}</CardDescription>
+                    <CardDescription className={`text-xs line-clamp-2 ${
+                      isActive && !isExpired ? 'text-gray-700' : 'text-gray-500'
+                    }`}>
+                      {auction.description}
+                    </CardDescription>
                   )}
                 </CardHeader>
-                <CardContent className="p-3 pt-0">
+                <CardContent className="p-3 pt-0 flex-grow">
                   <div className="space-y-2">
                     <div>
-                      <p className="text-xs text-muted-foreground">Current Price</p>
-                      <p className="text-sm font-bold">
+                      <p className={`text-xs ${
+                        isActive && !isExpired ? 'text-gray-600' : 'text-gray-500'
+                      }`}>
+                        Current Price
+                      </p>
+                      <p className={`text-sm font-bold ${
+                        isActive && !isExpired ? 'text-gray-900' : 'text-gray-600'
+                      }`}>
                         {auction.highest_bid ? formatEther(BigInt(auction.highest_bid)) : 'N/A'} ETH
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Time Left</p>
-                      <p className="text-sm font-bold">
+                      <p className={`text-xs ${
+                        isActive && !isExpired ? 'text-gray-600' : 'text-gray-500'
+                      }`}>
+                        Time Left
+                      </p>
+                      <p className={`text-sm font-bold ${
+                        isActive && !isExpired ? 'text-gray-900' : 'text-gray-600'
+                      }`}>
                         {getTimeLeft(auction.end_time)}
                       </p>
                     </div>
                   </div>
                 </CardContent>
-                <CardFooter className="p-3 pt-0">
+                <CardFooter className="p-3 pt-0 flex-shrink-0 mt-auto">
                   {canJoinAuction ? (
                     <Link to={`/auction/${auction.id}`} className="w-full">
-                      <Button className="w-full text-xs py-2">Join Auction</Button>
+                      <Button className="w-full text-xs py-2 bg-gray-900 hover:bg-gray-800 text-white">
+                        Join Auction
+                      </Button>
                     </Link>
                   ) : (
                     <Button className="w-full text-xs py-2" disabled>

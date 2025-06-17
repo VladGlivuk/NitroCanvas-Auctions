@@ -332,22 +332,11 @@ export class ERC7824Service {
     } catch (error) {
       console.error(`Settlement failed for auction ${auctionId}:`, error);
       
-      // Mark settlement as failed
+      // Mark settlement as failed and store error message
       await this.db.query(
-        'UPDATE auctions SET settlement_status = $1 WHERE id = $2',
-        ['failed', auctionId]
+        'UPDATE auctions SET settlement_status = $1, settlement_error = $2 WHERE id = $3',
+        ['failed', error.message, auctionId]
       );
-
-      // Store settlement attempt
-      await this.db.query(`
-        INSERT INTO settlement_attempts (id, auction_id, status, error_message, attempted_at)
-        VALUES ($1, $2, 'failed', $3, $4)
-      `, [
-        ethers.keccak256(ethers.toUtf8Bytes(`${auctionId}_${Date.now()}`)),
-        auctionId,
-        error.message,
-        new Date()
-      ]);
 
       throw error;
     }
@@ -405,35 +394,15 @@ export class ERC7824Service {
       
       const tx = await contractCall;
 
-      // Store settlement attempt
-      const settlementId = ethers.keccak256(ethers.toUtf8Bytes(`${auction.id}_${Date.now()}`));
-      await this.db.query(`
-        INSERT INTO settlement_attempts 
-        (id, auction_id, winning_bid_id, tx_hash, status, attempted_at)
-        VALUES ($1, $2, $3, $4, 'pending', $5)
-      `, [
-        settlementId,
-        auction.id,
-        auction.bidder_id,
-        tx.hash,
-        new Date()
-      ]);
-
       // Wait for transaction confirmation
       const receipt = await tx.wait();
 
-      // Update settlement status
-      await this.db.query(`
-        UPDATE settlement_attempts 
-        SET status = 'success', gas_used = $1, block_number = $2, completed_at = $3
-        WHERE tx_hash = $4
-      `, [receipt.gasUsed.toString(), receipt.blockNumber, new Date(), tx.hash]);
-
-      // Update auction
+      // Update auction with successful settlement
       await this.db.query(`
         UPDATE auctions 
         SET status = 'completed', settlement_status = 'completed', 
-            settlement_tx_hash = $1, highest_bidder = $2, highest_bid = $3
+            settlement_tx_hash = $1, highest_bidder = $2, highest_bid = $3,
+            settlement_error = NULL
         WHERE id = $4
       `, [tx.hash, auction.bidder_id, auction.winning_amount, auction.id]);
 
