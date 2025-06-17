@@ -1,4 +1,3 @@
-// src/routes/auction.routes.ts
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { ethers } from 'ethers';
@@ -11,7 +10,6 @@ import { pool, provider, wallet } from '../index.js';
 import { env } from '../config/env.js';
 import { generateAuctionPricing, DEFAULT_AUCTION_PRICING } from '../utils/pricing.js';
 
-// Interfaces
 interface CreateAuctionRequest {
   nftId: string;
   sellerId: string;
@@ -33,7 +31,7 @@ interface PlaceBidRequest {
 const router = Router();
 const contractService = new ContractService();
 
-// Get current auction pricing based on USD equivalents
+// Get current auction pricing based on USD amounts converted to ETH
 router.get('/pricing', async (req: Request, res: Response) => {
   try {
     const pricing = await generateAuctionPricing({
@@ -138,19 +136,19 @@ router.post('/create', async (req: Request<{}, {}, CreateAuctionRequest & { cont
 
     const auctionId = uuidv4();
     const values = [
-      auctionId, // id
-      nftId, // nft_id (directly from payload)
-      sellerId, // seller_id (wallet address)
-      startTime, // start_time
-      endTime, // end_time
-      'active', // status
-      contractAuctionId || null, // contract_auction_id
-      title, // title
-      description || null, // description
-      null, // highest_bidder
-      null, // highest_bid
-      startingPrice ? ethers.parseEther(startingPrice).toString() : '0', // starting_price in wei
-      minBidIncrement ? ethers.parseEther(minBidIncrement).toString() : ethers.parseEther('0.01').toString(), // min_bid_increment in wei
+      auctionId,
+      nftId,
+      sellerId,
+      startTime,
+      endTime,
+      'active',
+      contractAuctionId || null,
+      title,
+      description || null,
+      ethers.ZeroAddress,
+      '0',
+      startingPrice ? ethers.parseEther(startingPrice).toString() : (await generateAuctionPricing()).startingPriceWei, // starting_price in wei ($1 USD equivalent)
+      minBidIncrement ? ethers.parseEther(minBidIncrement).toString() : (await generateAuctionPricing()).minIncrementWei, // min_bid_increment in wei ($0.25 USD equivalent)
     ];
 
     console.log('[Auction Create] Inserting auction with values:', values);

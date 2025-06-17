@@ -61,6 +61,21 @@ export default function AuctionTradePage() {
     fetchAuctionDetails();
   }, [dbAuctionId]);
 
+  const refreshAuctionDetails = async () => {
+    if (!dbAuctionId) return;
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auctions/${dbAuctionId}`);
+      if (response.ok) {
+        const data: FullAuctionData = await response.json();
+        setAuctionDetails(data);
+        console.log('Auction details refreshed after bid:', data);
+      }
+    } catch (error) {
+      console.error('Error refreshing auction details:', error);
+    }
+  };
+
   // Effect to update timeLeft based on database endTime
   useEffect(() => {
     if (auctionDetails) {
@@ -188,9 +203,9 @@ export default function AuctionTradePage() {
         console.error('Settlement error:', error);
         toast.error(error.message || 'Failed to complete auction');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error completing auction:', error);
-      toast.error(error.message || 'Failed to complete auction');
+      toast.error('Failed to complete auction');
     } finally {
       setIsSettling(false);
     }
@@ -237,9 +252,9 @@ export default function AuctionTradePage() {
         console.error('Cancel error:', error);
         toast.error(error.message || 'Failed to cancel auction');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error cancelling auction:', error);
-      toast.error(error.message || 'Failed to cancel auction');
+      toast.error('Failed to cancel auction');
     } finally {
       setIsSettling(false);
     }
@@ -308,6 +323,7 @@ export default function AuctionTradePage() {
                 min_bid_increment: auctionDetails.min_bid_increment
               }}
               userAddress={auctionDetails.seller_id}
+              onBidPlaced={refreshAuctionDetails}
             />
           </div>
         </div>

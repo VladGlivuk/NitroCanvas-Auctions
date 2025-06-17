@@ -3,6 +3,25 @@ import { useAccount, useSignTypedData } from 'wagmi';
 import { formatEther, parseEther } from 'viem';
 import { toast } from 'sonner';
 
+// Utility to fetch ETH price in USD
+const fetchEthPrice = async (): Promise<number> => {
+  try {
+    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+    const data = await response.json();
+    return data.ethereum.usd;
+  } catch (error) {
+    console.warn('Failed to fetch ETH price:', error);
+    return 3300; // Fallback price
+  }
+};
+
+// Convert ETH to USD
+const ethToUsd = (ethAmount: string, ethPrice: number): string => {
+  const eth = parseFloat(ethAmount);
+  const usd = eth * ethPrice;
+  return usd.toFixed(2);
+};
+
 interface BidData {
   bidder_id: string;
   amount: string;
@@ -22,12 +41,14 @@ interface BiddingInterfaceProps {
     min_bid_increment?: string;
   };
   userAddress?: string;
+  onBidPlaced?: () => void;
 }
 
 export default function BiddingInterface({ 
   auctionId, 
   auctionData, 
-  userAddress 
+  userAddress,
+  onBidPlaced
 }: BiddingInterfaceProps) {
   const { address } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
@@ -37,6 +58,7 @@ export default function BiddingInterface({
   const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [bidNonce, setBidNonce] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  const [ethPrice, setEthPrice] = useState(3300);
   const wsRef = useRef<WebSocket | null>(null);
 
   // WebSocket connection for real-time bid updates
@@ -50,7 +72,6 @@ export default function BiddingInterface({
         ws.onopen = () => {
           console.log('WebSocket connected');
           setIsConnected(true);
-          // Subscribe to auction updates
           ws.send(JSON.stringify({
             type: 'subscribe',
             auctionId: auctionId
@@ -63,19 +84,16 @@ export default function BiddingInterface({
             console.log('Received WebSocket message:', data);
             
             if (data.type === 'bid_update' && data.auctionId === auctionId) {
-              // Update bids in real time
               fetchBids();
             } else if (data.type === 'subscribed') {
               console.log(`Subscribed to auction ${data.auctionId}`);
             } else if (data.type === 'auction_completed' && data.auctionId === auctionId) {
-              // Show notification about auction completion for bidders
               if (data.winner === address) {
                 toast.success(`🎉 Congratulations! You won this auction!`);
               } else {
                 toast.info(`📢 This auction has been completed. Winner: ${data.winner.slice(0, 6)}...${data.winner.slice(-4)}`);
               }
             } else if (data.type === 'auction_cancelled' && data.auctionId === auctionId) {
-              // Show notification about auction cancellation
               toast.info(`📢 This auction has been cancelled by the seller`);
             }
           } catch (error) {
@@ -86,7 +104,6 @@ export default function BiddingInterface({
         ws.onclose = () => {
           console.log('WebSocket disconnected');
           setIsConnected(false);
-          // Reconnect after 3 seconds
           setTimeout(connectWebSocket, 3000);
         };
         
@@ -122,9 +139,10 @@ export default function BiddingInterface({
     }
   };
 
-  // Initial bid fetch
+  // Initial bid fetch and ETH price fetch
   useEffect(() => {
     fetchBids();
+    fetchEthPrice().then(setEthPrice);
   }, [auctionId]);
 
   // Generate nonce for bid
@@ -155,7 +173,8 @@ export default function BiddingInterface({
       const startingPrice = auctionData.starting_price ? BigInt(auctionData.starting_price) : 0n;
       const minIncrement = auctionData.min_bid_increment ? BigInt(auctionData.min_bid_increment) : parseEther('0.01');
       
-      const minBid = currentHighest > 0n ? currentHighest + minIncrement : startingPrice;
+      const hasBids = currentHighest > 0n;
+      const minBid = hasBids ? currentHighest + minIncrement : startingPrice;
       
       if (bidAmountWei < minBid) {
         toast.error(`Bid must be at least ${formatEther(minBid)} ETH`);
@@ -221,16 +240,19 @@ export default function BiddingInterface({
         setNewBidAmount('');
         setBidNonce(nonce);
         
-        // Update bids immediately
         setBids(result.bids || []);
+        
+        if (onBidPlaced) {
+          onBidPlaced();
+        }
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to place bid');
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error placing bid:', error);
-      toast.error(error.message || 'Failed to place bid');
+      toast.error('Failed to place bid');
     } finally {
       setIsPlacingBid(false);
     }
@@ -267,11 +289,37 @@ export default function BiddingInterface({
       <div className="mb-6">
         <h3 className="text-lg font-semibold mb-2">Current Highest Bid</h3>
         <div className="text-3xl font-bold text-blue-600">
-          {auctionData.highest_bid ? formatEther(BigInt(auctionData.highest_bid)) : '0'} ETH
+          {(() => {
+            const currentBid = auctionData.highest_bid ? formatEther(BigInt(auctionData.highest_bid)) : '0';
+            const hasBids = currentBid !== '0' && auctionData.highest_bidder && auctionData.highest_bidder !== '0x0000000000000000000000000000000000000000';
+            
+            if (hasBids) {
+              const usdValue = ethToUsd(currentBid, ethPrice);
+              return (
+                <>
+                  {currentBid} ETH
+                  <span className="text-lg font-normal text-gray-500 ml-2">
+                    (~${usdValue} USD)
+                  </span>
+                </>
+              );
+            } else {
+              const isFinished = auctionData.status !== 'active';
+              return (
+                <>
+                  {isFinished ? 'Auction ended with no bids' : 'No bids yet'}
+                </>
+              );
+            }
+          })()}
         </div>
-        {auctionData.highest_bidder && (
+        {auctionData.highest_bidder && auctionData.highest_bidder !== '0x0000000000000000000000000000000000000000' ? (
           <p className="text-sm text-gray-600">
             by {auctionData.highest_bidder.slice(0, 6)}...{auctionData.highest_bidder.slice(-4)}
+          </p>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Starting price: {auctionData.starting_price ? formatEther(BigInt(auctionData.starting_price)) : '0'} ETH (~${auctionData.starting_price ? ethToUsd(formatEther(BigInt(auctionData.starting_price)), ethPrice) : '0'} USD)
           </p>
         )}
         <p className="text-sm text-gray-500 mt-1">
@@ -284,20 +332,21 @@ export default function BiddingInterface({
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-2">Place Your Bid</h3>
           {(() => {
-            // Calculate minimum bid (same logic as validation)
             const currentHighest = auctionData.highest_bid ? BigInt(auctionData.highest_bid) : 0n;
             const startingPrice = auctionData.starting_price ? BigInt(auctionData.starting_price) : 0n;
             const minIncrement = auctionData.min_bid_increment ? BigInt(auctionData.min_bid_increment) : parseEther('0.01');
             
-            const minBid = currentHighest > 0n ? currentHighest + minIncrement : startingPrice;
+            const hasBids = currentHighest > 0n;
+            const minBid = hasBids ? currentHighest + minIncrement : startingPrice;
             const minBidEth = formatEther(minBid);
+            const minBidUsd = ethToUsd(minBidEth, ethPrice);
             
             return (
               <>
                 <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
                   <div className="flex justify-between items-center">
                     <p className="text-sm text-blue-700 font-medium">
-                      💡 Next bid must be at least: <span className="font-bold">{minBidEth} ETH</span>
+                      💡 Next bid must be at least: <span className="font-bold">{minBidEth} ETH (~${minBidUsd} USD)</span>
                     </p>
                     <button
                       onClick={() => setNewBidAmount(minBidEth)}
@@ -314,7 +363,7 @@ export default function BiddingInterface({
                     step="0.001"
                     value={newBidAmount}
                     onChange={(e) => setNewBidAmount(e.target.value)}
-                    placeholder={`Enter at least ${minBidEth} ETH`}
+                    placeholder={`Enter at least ${minBidEth} ETH (~$${minBidUsd})`}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     disabled={isPlacingBid}
                     min={minBidEth}

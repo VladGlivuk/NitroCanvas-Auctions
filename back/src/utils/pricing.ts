@@ -77,7 +77,7 @@ export async function weiToUsd(weiAmount: string): Promise<number> {
 }
 
 /**
- * Get default auction pricing in USD equivalents
+ * Get default auction pricing in USD equivalents (converted to ETH)
  */
 export const DEFAULT_AUCTION_PRICING = {
   MINIMUM_BID_USD: 1.0,        // $1 USD minimum bid
@@ -86,7 +86,7 @@ export const DEFAULT_AUCTION_PRICING = {
 };
 
 /**
- * Generate auction pricing in Wei based on USD amounts
+ * Generate auction pricing in Wei based on USD amounts converted to ETH
  */
 export async function generateAuctionPricing(options?: {
   minimumBidUsd?: number;

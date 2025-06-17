@@ -60,7 +60,13 @@ export class ERC7824Service {
     try {
       const channelId = ethers.keccak256(ethers.toUtf8Bytes(`auction_${auctionId}_${Date.now()}`));
       
-      // Initialize channel state
+      const auctionResult = await this.db.query(
+        'SELECT starting_price FROM auctions WHERE id = $1',
+        [auctionId]
+      );
+      
+      const startingPrice = auctionResult.rows[0]?.starting_price || '0';
+      
       const initialState: AuctionChannelState = {
         auctionId,
         participants: [],
@@ -97,9 +103,17 @@ export class ERC7824Service {
 
       // Validate bid amount
       const bidAmount = ethers.getBigInt(bidData.amount);
+      
+      // Block 0 ETH bids
+      if (bidAmount === 0n) {
+        throw new Error('Bid amount cannot be 0 ETH');
+      }
+      
       const currentHighest = currentState.highestBid === '0' || !currentState.highestBid 
         ? 0n 
         : ethers.getBigInt(currentState.highestBid);
+      
+      const hasBids = currentHighest > 0n;
       
       // Get auction details for minimum increment validation
       const auctionResult = await this.db.query(
@@ -112,14 +126,20 @@ export class ERC7824Service {
       }
 
       const { starting_price, min_bid_increment } = auctionResult.rows[0];
-      const minBid = currentHighest === 0n 
+      
+      const startingPriceBigInt = starting_price && starting_price !== '0' 
         ? ethers.getBigInt(starting_price)
-        : currentHighest + ethers.getBigInt(min_bid_increment);
+        : ethers.parseEther('0.0003');
+      
+      const minBid = hasBids 
+        ? currentHighest + ethers.getBigInt(min_bid_increment)
+        : startingPriceBigInt;
 
       console.log('Bid validation:', {
         bidAmount: ethers.formatEther(bidAmount),
         currentHighest: ethers.formatEther(currentHighest),
-        startingPrice: ethers.formatEther(starting_price),
+        hasBids,
+        startingPrice: ethers.formatEther(startingPriceBigInt),
         minBidIncrement: ethers.formatEther(min_bid_increment),
         requiredMinBid: ethers.formatEther(minBid)
       });
