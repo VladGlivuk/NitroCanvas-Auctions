@@ -283,34 +283,51 @@ export default function BiddingInterface({
       {canBid ? (
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-2">Place Your Bid</h3>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              step="0.001"
-              value={newBidAmount}
-              onChange={(e) => setNewBidAmount(e.target.value)}
-              placeholder="Enter bid amount in ETH"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isPlacingBid}
-            />
-            <button
-              onClick={handlePlaceBid}
-              disabled={isPlacingBid || !newBidAmount}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {isPlacingBid ? 'Placing...' : 'Bid'}
-            </button>
-          </div>
           {(() => {
-            const minIncrement = auctionData.min_bid_increment ? BigInt(auctionData.min_bid_increment) : BigInt(0);
-            const highestBid = auctionData.highest_bid ? BigInt(auctionData.highest_bid) : null;
-            const minBid = highestBid !== null && minIncrement > 0
-              ? highestBid + minIncrement
-              : auctionData.starting_price ? BigInt(auctionData.starting_price) : BigInt(0);
+            // Calculate minimum bid (same logic as validation)
+            const currentHighest = auctionData.highest_bid ? BigInt(auctionData.highest_bid) : 0n;
+            const startingPrice = auctionData.starting_price ? BigInt(auctionData.starting_price) : 0n;
+            const minIncrement = auctionData.min_bid_increment ? BigInt(auctionData.min_bid_increment) : parseEther('0.01');
+            
+            const minBid = currentHighest > 0n ? currentHighest + minIncrement : startingPrice;
+            const minBidEth = formatEther(minBid);
+            
             return (
-              <p className="text-sm text-gray-500 mt-1">
-                Minimum bid: {formatEther(minBid)} ETH
-              </p>
+              <>
+                <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-blue-700 font-medium">
+                      💡 Next bid must be at least: <span className="font-bold">{minBidEth} ETH</span>
+                    </p>
+                    <button
+                      onClick={() => setNewBidAmount(minBidEth)}
+                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                      disabled={isPlacingBid}
+                    >
+                      Use Min
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={newBidAmount}
+                    onChange={(e) => setNewBidAmount(e.target.value)}
+                    placeholder={`Enter at least ${minBidEth} ETH`}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={isPlacingBid}
+                    min={minBidEth}
+                  />
+                  <button
+                    onClick={handlePlaceBid}
+                    disabled={isPlacingBid || !newBidAmount}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isPlacingBid ? 'Placing...' : 'Bid'}
+                  </button>
+                </div>
+              </>
             );
           })()}
         </div>

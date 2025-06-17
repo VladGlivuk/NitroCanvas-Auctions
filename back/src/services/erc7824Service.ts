@@ -140,6 +140,14 @@ export class ERC7824Service {
       // Store bid in database
       await this.storeBid(bidData, channelId);
 
+      await this.db.query(`
+        UPDATE auctions 
+        SET highest_bidder = $1, highest_bid = $2, updated_at = NOW()
+        WHERE id = $3
+      `, [bidData.bidder, bidData.amount, bidData.auctionId]);
+      
+      console.log(`Updated auction ${bidData.auctionId} with highest bid: ${ethers.formatEther(bidData.amount)} ETH from ${bidData.bidder}`);
+
       // Update channel state
       this.channels.set(channelId, newState);
 
